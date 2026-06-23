@@ -164,4 +164,4 @@ No Makefile modification needed — tests are **auto-discovered**.
 
 ---
 
-> Designed & Upgraded with ❤️ via Agentic Coding Assistance.
+> Designed & Upgraded by ❤️ KhoaNguyenT with Agentic.
