@@ -15,7 +15,7 @@ A fully functional **32-bit RISC-V Processor (RV32I base integer instruction set
 | **Branch Flush** | Pipeline flush on taken Branch/Jump (2-cycle penalty) |
 | **RegFile Bypass** | Internal write-through for WB→ID same-cycle forwarding |
 | **Memory** | Advanced LSU with Byte/Halfword/Word (Signed & Unsigned) |
-| **Bus Interfaces**| **AXI4-Lite** Master Wrapper & Testbench integration |
+| **Bus Interfaces**| **AXI4-Lite** Master with fully packeted struct ports (`axi_req_t` / `axi_resp_t`) |
 | **BRAM Ready** | `(* ram_style = "block" *)` attributes for FPGA synthesis |
 
 ---
@@ -55,7 +55,8 @@ RISCV-basic/
 │   ├── Pipeline_Architecture.drawio   # Architecture diagram (open with draw.io)
 │   └── CSR_Privileged_Architecture_Class.md
 ├── include/
-│   └── config.vh                      # Global defines (XLEN, MEM_DEPTH)
+│   ├── config.vh                      # Global defines (XLEN, MEM_DEPTH)
+│   └── riscv_axi_pkg.sv               # AXI4-Lite struct and enum definitions
 ├── sim/
 │   ├── asm/                           # 📝 Assembly test sources (.s)
 │   │   ├── testcase_hazards.s
