@@ -58,10 +58,6 @@ RISCV-basic/
 │           ├── riscv_axi_memory_slave.sv # AXI4-Lite SRAM Slave
 │           └── riscv_axi_top.sv       # AXI4-Lite Top Integration
 ├── Docs/
-│   ├── Pipeline_Architecture.drawio   # Architecture diagram (open with draw.io)
-│   ├── AXI4_Wrapper_Architecture.drawio # AXI4 Wrapper diagram
-│   ├── Architecture.drawio            # System Architecture
-│   ├── RISCV_Datapath.drawio          # Datapath diagram
 │   ├── CSR_Privileged_Architecture_Class.md # CSR Documentation
 │   └── RISCV32I_Zicsr_Technical_Documentation.md # Technical Docs
 ├── include/
