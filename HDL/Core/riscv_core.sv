@@ -8,6 +8,21 @@ module riscv_core (
     input  logic             ext_irq_i,
     input  logic             timer_irq_i,
     
+    // Instruction Memory Interface
+    output logic [31:0]      imem_addr_o,
+    input  logic [31:0]      imem_rdata_i,
+    
+    // Data Memory Interface
+    output logic [31:0]      dmem_addr_o,
+    output logic [31:0]      dmem_wdata_o,
+    output logic [3:0]       dmem_we_o,
+    output logic             dmem_req_o,
+    input  logic [31:0]      dmem_rdata_i,
+    
+    // Tín hiệu Stall bên ngoài (Từ AXI Wrapper)
+    input  logic             ext_stall_if_i,
+    input  logic             ext_stall_mem_i,
+    
     // Debug ports
     output logic [`XLEN-1:0] pc_debug_o,
     output logic [`XLEN-1:0] alu_result_debug_o
@@ -85,13 +100,16 @@ module riscv_core (
     logic             w_is_ebreak_id, w_is_ebreak_ex, w_is_ebreak_mem, w_is_ebreak_wb;
     logic             w_is_mret_id,   w_is_mret_ex,   w_is_mret_mem,   w_is_mret_wb;
     logic             w_is_illegal_id,w_is_illegal_ex,w_is_illegal_mem,w_is_illegal_wb;
+    logic             w_is_interrupt_if, w_is_interrupt_id, w_is_interrupt_ex, w_is_interrupt_mem, w_is_interrupt_wb;
+    logic             w_take_interrupt;
     logic             w_trap;
     logic             w_mret;
     logic [`XLEN-1:0] w_epc, w_tvec;
     logic [`XLEN-1:0] w_pc_mem, w_pc_wb;
 
     // Hazard Unit Wires
-    logic             w_stall_if, w_stall_id, w_flush_id, w_flush_ex, w_flush_mem, w_flush_wb;
+    logic             w_stall_if, w_stall_id, w_stall_ex, w_stall_mem, w_stall_wb;
+    logic             w_flush_id, w_flush_ex, w_flush_mem, w_flush_wb;
     logic [1:0]       w_forward_a, w_forward_b;
 
     // Debug Mapping
@@ -116,9 +134,13 @@ module riscv_core (
         .mret_i       (w_mret),         // Từ CSR (WB stage)
         .tvec_i       (w_tvec),         // Từ CSR (WB stage)
         .epc_i        (w_epc),          // Từ CSR (WB stage)
+        .take_interrupt_i(w_take_interrupt),
+        .imem_addr_o  (imem_addr_o),
+        .imem_rdata_i (imem_rdata_i),
         .pc_o         (w_pc_if),
         .pc_plus_4_o  (w_pc_plus_4_if),
-        .instr_o      (w_instr_if)
+        .instr_o      (w_instr_if),
+        .is_interrupt_o(w_is_interrupt_if)
     );
 
     // [PIPELINE REGISTER: IF/ID]
@@ -130,9 +152,11 @@ module riscv_core (
         .pc_i         (w_pc_if),
         .pc_plus_4_i  (w_pc_plus_4_if),
         .instr_i      (w_instr_if),
+        .is_interrupt_i(w_is_interrupt_if),
         .pc_o         (w_pc_id),
         .pc_plus_4_o  (w_pc_plus_4_id),
-        .instr_o      (w_instr_id)
+        .instr_o      (w_instr_id),
+        .is_interrupt_o(w_is_interrupt_id)
     );
 
     // 2. ID STAGE (Instruction Decode)
@@ -175,6 +199,7 @@ module riscv_core (
     riscv_id_ex u_id_ex_reg (
         .clk_i          (clk_i),
         .rst_n_i        (rst_n_i),
+        .en_i           (~w_stall_ex),
         .clr_i          (w_flush_ex),
         .reg_write_i    (w_reg_write_id),
         .result_src_i   (w_result_src_id),
@@ -202,6 +227,7 @@ module riscv_core (
         .is_ebreak_i    (w_is_ebreak_id),
         .is_mret_i      (w_is_mret_id),
         .is_illegal_i   (w_is_illegal_id),
+        .is_interrupt_i (w_is_interrupt_id),
         
         .reg_write_o    (w_reg_write_ex),
         .result_src_o   (w_result_src_ex),
@@ -228,7 +254,8 @@ module riscv_core (
         .is_ecall_o     (w_is_ecall_ex),
         .is_ebreak_o    (w_is_ebreak_ex),
         .is_mret_o      (w_is_mret_ex),
-        .is_illegal_o   (w_is_illegal_ex)
+        .is_illegal_o   (w_is_illegal_ex),
+        .is_interrupt_o (w_is_interrupt_ex)
     );
 
     // Logic tính toán dữ liệu Forward từ tầng MEM
@@ -275,6 +302,7 @@ module riscv_core (
     riscv_ex_mem u_ex_mem_reg (
         .clk_i          (clk_i),
         .rst_n_i        (rst_n_i),
+        .en_i           (~w_stall_mem),
         .clr_i          (w_flush_mem),
         .reg_write_i    (w_reg_write_ex),
         .result_src_i   (w_result_src_ex),
@@ -295,6 +323,7 @@ module riscv_core (
         .is_ebreak_i    (w_is_ebreak_ex),
         .is_mret_i      (w_is_mret_ex),
         .is_illegal_i   (w_is_illegal_ex),
+        .is_interrupt_i (w_is_interrupt_ex),
         
         .reg_write_o    (w_reg_write_mem),
         .result_src_o   (w_result_src_mem),
@@ -314,7 +343,8 @@ module riscv_core (
         .is_ecall_o     (w_is_ecall_mem),
         .is_ebreak_o    (w_is_ebreak_mem),
         .is_mret_o      (w_is_mret_mem),
-        .is_illegal_o   (w_is_illegal_mem)
+        .is_illegal_o   (w_is_illegal_mem),
+        .is_interrupt_o (w_is_interrupt_mem)
     );
 
     // 4. MEM STAGE (Memory Access)
@@ -326,13 +356,17 @@ module riscv_core (
         .mem_write_i    (w_mem_write_mem),
         .ls_size_i      (w_ls_size_mem),
         .ls_unsigned_i  (w_ls_unsigned_mem),
-        .read_data_o    (w_read_data_mem)
+        .read_data_o    (w_read_data_mem),
+        .dmem_we_o      (dmem_we_o),
+        .dmem_wd_o      (dmem_wdata_o),
+        .dmem_rd_i      (dmem_rdata_i)
     );
 
     // [PIPELINE REGISTER: MEM/WB]
     riscv_mem_wb u_mem_wb_reg (
         .clk_i          (clk_i),
         .rst_n_i        (rst_n_i),
+        .en_i           (~w_stall_wb),
         .clr_i          (w_flush_wb),
         .reg_write_i    (w_reg_write_mem),
         .result_src_i   (w_result_src_mem),
@@ -350,6 +384,7 @@ module riscv_core (
         .is_ebreak_i    (w_is_ebreak_mem),
         .is_mret_i      (w_is_mret_mem),
         .is_illegal_i   (w_is_illegal_mem),
+        .is_interrupt_i (w_is_interrupt_mem),
         
         .reg_write_o    (w_reg_write_wb),
         .result_src_o   (w_result_src_wb),
@@ -366,8 +401,19 @@ module riscv_core (
         .is_ecall_o     (w_is_ecall_wb),
         .is_ebreak_o    (w_is_ebreak_wb),
         .is_mret_o      (w_is_mret_wb),
-        .is_illegal_o   (w_is_illegal_wb)
+        .is_illegal_o   (w_is_illegal_wb),
+        .is_interrupt_o (w_is_interrupt_wb)
     );
+
+    // =================================================================
+    // CSR & INTERRUPT LOGIC (WB Stage)
+    // =================================================================
+    always @(negedge clk_i) begin
+        if (w_is_illegal_wb || w_csr_illegal) begin
+            $display("DEBUG ILLEGAL: pc_wb=%h, is_illegal_wb=%b, csr_illegal=%b, csr_op_wb=%b", 
+                w_pc_wb, w_is_illegal_wb, w_csr_illegal, w_csr_op_wb);
+        end
+    end
 
     // =================================================================
     // CSR & PRIVILEGED ARCHITECTURE (WB Stage)
@@ -386,7 +432,9 @@ module riscv_core (
         .is_ebreak_i    (w_is_ebreak_wb),
         .is_mret_i      (w_is_mret_wb),
         .is_illegal_i   (w_is_illegal_wb | w_csr_illegal), // Gộp lỗi decode + lỗi CSR
+        .is_interrupt_i (w_is_interrupt_wb),
         .pc_wb_i        (w_pc_wb),
+        .take_interrupt_o (w_take_interrupt),
         .trap_o         (w_trap),
         .mret_o         (w_mret),
         .epc_o          (w_epc),
@@ -409,27 +457,39 @@ module riscv_core (
     // HAZARD UNIT (Giải quyết xung đột)
     // =================================================================
     riscv_hazard_unit u_hazard_unit (
-        .rs1_addr_id_i  (w_rs1_addr_id),
-        .rs2_addr_id_i  (w_rs2_addr_id),
-        .rs1_addr_ex_i  (w_rs1_addr_ex),
-        .rs2_addr_ex_i  (w_rs2_addr_ex),
-        .rd_addr_ex_i   (w_rd_addr_ex),
-        .result_src_ex_i(w_result_src_ex),
-        .pc_src_ex_i    (w_pc_src_ex),
-        .rd_addr_mem_i  (w_rd_addr_mem),
-        .reg_write_mem_i(w_reg_write_mem),
-        .rd_addr_wb_i   (w_rd_addr_wb),
-        .reg_write_wb_i (w_reg_write_wb),
-        .trap_i         (w_trap),
-        .mret_i         (w_mret),
-        .stall_if_o     (w_stall_if),
-        .stall_id_o     (w_stall_id),
-        .flush_id_o     (w_flush_id),
-        .flush_ex_o     (w_flush_ex),
-        .flush_mem_o    (w_flush_mem),
-        .flush_wb_o     (w_flush_wb),
-        .forward_a_o    (w_forward_a),
-        .forward_b_o    (w_forward_b)
+        .ext_stall_if_i  (ext_stall_if_i),
+        .ext_stall_mem_i (ext_stall_mem_i),
+        .rs1_addr_id_i   (w_rs1_addr_id),
+        .rs2_addr_id_i   (w_rs2_addr_id),
+        .rs1_addr_ex_i   (w_rs1_addr_ex),
+        .rs2_addr_ex_i   (w_rs2_addr_ex),
+        .rd_addr_ex_i    (w_rd_addr_ex),
+        .result_src_ex_i (w_result_src_ex),
+        .pc_src_ex_i     (w_pc_src_ex),
+        .rd_addr_mem_i   (w_rd_addr_mem),
+        .reg_write_mem_i (w_reg_write_mem),
+        .result_src_mem_i(w_result_src_mem),
+        .rd_addr_wb_i    (w_rd_addr_wb),
+        .reg_write_wb_i  (w_reg_write_wb),
+        .trap_i          (w_trap),
+        .mret_i          (w_mret),
+        .stall_if_o      (w_stall_if),
+        .stall_id_o      (w_stall_id),
+        .stall_ex_o      (w_stall_ex),
+        .stall_mem_o     (w_stall_mem),
+        .stall_wb_o      (w_stall_wb),
+        .flush_id_o      (w_flush_id),
+        .flush_ex_o      (w_flush_ex),
+        .flush_mem_o     (w_flush_mem),
+        .flush_wb_o      (w_flush_wb),
+        .forward_a_o     (w_forward_a),
+        .forward_b_o     (w_forward_b)
     );
+
+    // Data memory request is asserted if we are doing a load (RES_MEM) or a store (WE > 0)
+    assign dmem_req_o = (w_result_src_mem == RES_MEM) | (|dmem_we_o);
+    
+    // Memory address is ALU result from MEM stage
+    assign dmem_addr_o = w_alu_result_mem;
 
 endmodule

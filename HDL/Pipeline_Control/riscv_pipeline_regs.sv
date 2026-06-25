@@ -12,24 +12,24 @@ module riscv_if_id (
     input  logic [`XLEN-1:0] pc_i,
     input  logic [`XLEN-1:0] pc_plus_4_i,
     input  logic [`XLEN-1:0] instr_i,
+    input  logic             is_interrupt_i,
     
     output logic [`XLEN-1:0] pc_o,
     output logic [`XLEN-1:0] pc_plus_4_o,
-    output logic [`XLEN-1:0] instr_o
+    output logic [`XLEN-1:0] instr_o,
+    output logic             is_interrupt_o
 );
     always_ff @(posedge clk_i or negedge rst_n_i) begin
-        if (!rst_n_i) begin
-            pc_o        <= 32'b0;
-            pc_plus_4_o <= 32'b0;
-            instr_o     <= 32'b0; // NOP
-        end else if (clr_i) begin
-            pc_o        <= 32'b0;
-            pc_plus_4_o <= 32'b0;
-            instr_o     <= 32'b0; // Flush to NOP
+        if (!rst_n_i || clr_i) begin
+            pc_o           <= 32'b0;
+            pc_plus_4_o    <= 32'b0;
+            instr_o        <= 32'h00000013; // NOP (addi x0, x0, 0)
+            is_interrupt_o <= 1'b0;
         end else if (en_i) begin
-            pc_o        <= pc_i;
-            pc_plus_4_o <= pc_plus_4_i;
-            instr_o     <= instr_i;
+            pc_o           <= pc_i;
+            pc_plus_4_o    <= pc_plus_4_i;
+            instr_o        <= instr_i;
+            is_interrupt_o <= is_interrupt_i;
         end
     end
 endmodule
@@ -40,6 +40,7 @@ endmodule
 module riscv_id_ex (
     input  logic             clk_i,
     input  logic             rst_n_i,
+    input  logic             en_i,     // Stall
     input  logic             clr_i,    // Flush
     
     // Control Signals In
@@ -64,6 +65,7 @@ module riscv_id_ex (
     input  logic             is_ebreak_i,
     input  logic             is_mret_i,
     input  logic             is_illegal_i,
+    input  logic             is_interrupt_i,
     
     // Datapath In
     input  logic [`XLEN-1:0] rd1_i,
@@ -98,6 +100,7 @@ module riscv_id_ex (
     output logic             is_ebreak_o,
     output logic             is_mret_o,
     output logic             is_illegal_o,
+    output logic             is_interrupt_o,
     
     // Datapath Out
     output logic [`XLEN-1:0] rd1_o,
@@ -129,6 +132,7 @@ module riscv_id_ex (
             is_ebreak_o   <= 1'b0;
             is_mret_o     <= 1'b0;
             is_illegal_o  <= 1'b0;
+            is_interrupt_o<= 1'b0;
             
             rd1_o         <= 32'b0;
             rd2_o         <= 32'b0;
@@ -139,7 +143,7 @@ module riscv_id_ex (
             rs2_addr_o    <= 5'b0;
             rd_addr_o     <= 5'b0;
             funct3_o      <= 3'b0;
-        end else begin
+        end else if (en_i) begin
             reg_write_o   <= reg_write_i;
             result_src_o  <= result_src_i;
             mem_write_o   <= mem_write_i;
@@ -157,6 +161,7 @@ module riscv_id_ex (
             is_ebreak_o   <= is_ebreak_i;
             is_mret_o     <= is_mret_i;
             is_illegal_o  <= is_illegal_i;
+            is_interrupt_o<= is_interrupt_i;
             
             rd1_o         <= rd1_i;
             rd2_o         <= rd2_i;
@@ -177,7 +182,8 @@ endmodule
 module riscv_ex_mem (
     input  logic             clk_i,
     input  logic             rst_n_i,
-    input  logic             clr_i,
+    input  logic             en_i,     // Stall
+    input  logic             clr_i,    // Flush
     
     // Control Signals In
     input  logic             reg_write_i,
@@ -196,6 +202,7 @@ module riscv_ex_mem (
     input  logic             is_ebreak_i,
     input  logic             is_mret_i,
     input  logic             is_illegal_i,
+    input  logic             is_interrupt_i,
     
     // Datapath In
     input  logic [`XLEN-1:0] alu_result_i,
@@ -223,6 +230,7 @@ module riscv_ex_mem (
     output logic             is_ebreak_o,
     output logic             is_mret_o,
     output logic             is_illegal_o,
+    output logic             is_interrupt_o,
     
     // Datapath Out
     output logic [`XLEN-1:0] alu_result_o,
@@ -234,7 +242,7 @@ module riscv_ex_mem (
     output logic [`XLEN-1:0] pc_target_o
 );
     always_ff @(posedge clk_i or negedge rst_n_i) begin
-        if (!rst_n_i) begin
+        if (!rst_n_i || clr_i) begin
             reg_write_o   <= 1'b0;
             result_src_o  <= RES_ALU;
             mem_write_o   <= 1'b0;
@@ -247,6 +255,7 @@ module riscv_ex_mem (
             is_ebreak_o   <= 1'b0;
             is_mret_o     <= 1'b0;
             is_illegal_o  <= 1'b0;
+            is_interrupt_o<= 1'b0;
             
             alu_result_o  <= 32'b0;
             write_data_o  <= 32'b0;
@@ -255,28 +264,7 @@ module riscv_ex_mem (
             pc_plus_4_o   <= 32'b0;
             imm_ext_o     <= 32'b0;
             pc_target_o   <= 32'b0;
-        end else if (clr_i) begin
-            reg_write_o   <= 1'b0;
-            result_src_o  <= RES_ALU;
-            mem_write_o   <= 1'b0;
-            ls_size_o     <= LS_WORD;
-            ls_unsigned_o <= 1'b0;
-            csr_addr_o    <= 12'b0;
-            csr_op_o      <= CSR_NONE;
-            csr_wd_o      <= 32'b0;
-            is_ecall_o    <= 1'b0;
-            is_ebreak_o   <= 1'b0;
-            is_mret_o     <= 1'b0;
-            is_illegal_o  <= 1'b0;
-            
-            alu_result_o  <= 32'b0;
-            write_data_o  <= 32'b0;
-            rd_addr_o     <= 5'b0;
-            pc_o          <= 32'b0;
-            pc_plus_4_o   <= 32'b0;
-            imm_ext_o     <= 32'b0;
-            pc_target_o   <= 32'b0;
-        end else begin
+        end else if (en_i) begin
             reg_write_o   <= reg_write_i;
             result_src_o  <= result_src_i;
             mem_write_o   <= mem_write_i;
@@ -289,6 +277,7 @@ module riscv_ex_mem (
             is_ebreak_o   <= is_ebreak_i;
             is_mret_o     <= is_mret_i;
             is_illegal_o  <= is_illegal_i;
+            is_interrupt_o<= is_interrupt_i;
             
             alu_result_o  <= alu_result_i;
             write_data_o  <= write_data_i;
@@ -307,7 +296,8 @@ endmodule
 module riscv_mem_wb (
     input  logic             clk_i,
     input  logic             rst_n_i,
-    input  logic             clr_i,
+    input  logic             en_i,     // Stall
+    input  logic             clr_i,    // Flush
     
     // Control Signals In
     input  logic             reg_write_i,
@@ -323,6 +313,7 @@ module riscv_mem_wb (
     input  logic             is_ebreak_i,
     input  logic             is_mret_i,
     input  logic             is_illegal_i,
+    input  logic             is_interrupt_i,
     
     // Datapath In
     input  logic [`XLEN-1:0] alu_result_i,
@@ -347,6 +338,7 @@ module riscv_mem_wb (
     output logic             is_ebreak_o,
     output logic             is_mret_o,
     output logic             is_illegal_o,
+    output logic             is_interrupt_o,
     
     // Datapath Out
     output logic [`XLEN-1:0] alu_result_o,
@@ -358,7 +350,7 @@ module riscv_mem_wb (
     output logic [`XLEN-1:0] pc_target_o
 );
     always_ff @(posedge clk_i or negedge rst_n_i) begin
-        if (!rst_n_i) begin
+        if (!rst_n_i || clr_i) begin
             reg_write_o  <= 1'b0;
             result_src_o <= RES_ALU;
             csr_addr_o   <= 12'b0;
@@ -368,6 +360,7 @@ module riscv_mem_wb (
             is_ebreak_o  <= 1'b0;
             is_mret_o    <= 1'b0;
             is_illegal_o <= 1'b0;
+            is_interrupt_o <= 1'b0;
             
             alu_result_o <= 32'b0;
             read_data_o  <= 32'b0;
@@ -376,25 +369,7 @@ module riscv_mem_wb (
             pc_plus_4_o  <= 32'b0;
             imm_ext_o    <= 32'b0;
             pc_target_o  <= 32'b0;
-        end else if (clr_i) begin
-            reg_write_o  <= 1'b0;
-            result_src_o <= RES_ALU;
-            csr_addr_o   <= 12'b0;
-            csr_op_o     <= CSR_NONE;
-            csr_wd_o     <= 32'b0;
-            is_ecall_o   <= 1'b0;
-            is_ebreak_o  <= 1'b0;
-            is_mret_o    <= 1'b0;
-            is_illegal_o <= 1'b0;
-            
-            alu_result_o <= 32'b0;
-            read_data_o  <= 32'b0;
-            rd_addr_o    <= 5'b0;
-            pc_o         <= 32'b0;
-            pc_plus_4_o  <= 32'b0;
-            imm_ext_o    <= 32'b0;
-            pc_target_o  <= 32'b0;
-        end else begin
+        end else if (en_i) begin
             reg_write_o  <= reg_write_i;
             result_src_o <= result_src_i;
             csr_addr_o   <= csr_addr_i;
@@ -404,6 +379,7 @@ module riscv_mem_wb (
             is_ebreak_o  <= is_ebreak_i;
             is_mret_o    <= is_mret_i;
             is_illegal_o <= is_illegal_i;
+            is_interrupt_o <= is_interrupt_i;
             
             alu_result_o <= alu_result_i;
             read_data_o  <= read_data_i;

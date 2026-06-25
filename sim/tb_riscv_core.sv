@@ -11,19 +11,63 @@ module tb_riscv_core();
     logic [31:0] alu_result_debug;
 
     // Khởi tạo CPU Core (Device Under Test - DUT)
+    logic ext_irq;
+    
+    logic [31:0] w_imem_addr;
+    logic [31:0] w_imem_rdata;
+    logic [31:0] w_dmem_addr;
+    logic [31:0] w_dmem_wdata;
+    logic [3:0]  w_dmem_we;
+    logic        w_dmem_req;
+    logic [31:0] w_dmem_rdata;
+
     riscv_core u_core (
         .clk_i              (clk_i),
         .rst_n_i            (rst_n_i),
-        .ext_irq_i          (1'b0),
+        .ext_irq_i          (ext_irq),
         .timer_irq_i        (1'b0),
+        .ext_stall_if_i     (1'b0), // No external stall in simple TB
+        .ext_stall_mem_i    (1'b0), // No external stall in simple TB
+        .imem_addr_o        (w_imem_addr),
+        .imem_rdata_i       (w_imem_rdata),
+        .dmem_addr_o        (w_dmem_addr),
+        .dmem_wdata_o       (w_dmem_wdata),
+        .dmem_we_o          (w_dmem_we),
+        .dmem_req_o         (w_dmem_req),
+        .dmem_rdata_i       (w_dmem_rdata),
         .pc_debug_o         (pc_debug),
         .alu_result_debug_o (alu_result_debug)
+    );
+
+    // Instantiate Instruction Memory
+    riscv_imem u_imem (
+        .addr_i  (w_imem_addr),
+        .instr_o (w_imem_rdata)
+    );
+
+    // Instantiate Data Memory
+    riscv_dmem u_dmem (
+        .clk_i   (clk_i),
+        .rst_n_i (rst_n_i),
+        .we_i    (w_dmem_we),
+        .addr_i  (w_dmem_addr),
+        .wd_i    (w_dmem_wdata),
+        .rd_o    (w_dmem_rdata)
     );
 
     // Tạo xung Clock (Chu kỳ 10ns -> Tần số 100MHz)
     initial begin
         clk_i = 1'b0;
         forever #5 clk_i = ~clk_i; 
+    end
+
+    // Trigger External Interrupt
+    initial begin
+        ext_irq = 1'b0;
+        #500;  // Chờ 50 chu kỳ để vào loop
+        ext_irq = 1'b1;
+        #200;  // Giữ trong 20 chu kỳ
+        ext_irq = 1'b0;
     end
 
     // Monitor để xem Pipeline chạy

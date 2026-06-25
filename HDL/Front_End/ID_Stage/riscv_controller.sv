@@ -176,32 +176,35 @@ module riscv_controller (
             end
 
             OP_SYSTEM: begin
-                if (funct3_i != 3'b000) begin // CSR Instructions
-                    reg_write_o  = 1'b1;
-                    result_src_o = RES_CSR; // Lấy kết quả từ CSR
-                    
-                    if (funct3_i[2]) csr_use_imm_o = 1'b1; // Immediate (CSRRWI, CSRRSI, CSRRCI)
-                    else             csr_use_imm_o = 1'b0;
-
-                    // Giải mã phép toán CSR. rs1_addr_i phục vụ cho zimm nếu dùng Immediate
-                    case (funct3_i[1:0])
-                        2'b01: csr_op_o = CSR_RW;
-                        2'b10: csr_op_o = (rs1_addr_i == 0) ? CSR_NONE : CSR_RS;
-                        2'b11: csr_op_o = (rs1_addr_i == 0) ? CSR_NONE : CSR_RC;
-                        default: csr_op_o = CSR_NONE;
-                    endcase
-                end else begin
+                if (funct3_i == 3'b000) begin
                     // Lệnh ECALL, EBREAK, MRET
                     csr_op_o = CSR_NONE;
                     if (csr_addr_i == 12'h000)      is_ecall_o  = 1'b1;
                     else if (csr_addr_i == 12'h001) is_ebreak_o = 1'b1;
                     else if (csr_addr_i == 12'h302) is_mret_o   = 1'b1;
                     else                            is_illegal_o= 1'b1; // Lệnh SYSTEM funct3=0 không hợp lệ
+                end else begin
+                    // Các lệnh CSR
+                    reg_write_o  = 1'b1;
+                    result_src_o = RES_CSR; // Lấy kết quả từ CSR
+                    case (funct3_i)
+                        3'b001: csr_op_o = CSR_RW;
+                        3'b010: csr_op_o = CSR_RS;
+                        3'b011: csr_op_o = CSR_RC;
+                        3'b101: begin csr_op_o = CSR_RW; csr_use_imm_o = 1'b1; end
+                        3'b110: begin csr_op_o = CSR_RS; csr_use_imm_o = 1'b1; end
+                        3'b111: begin csr_op_o = CSR_RC; csr_use_imm_o = 1'b1; end
+                        default: is_illegal_o = 1'b1;
+                    endcase
                 end
             end
-
+            
             default: is_illegal_o = 1'b1; // Mã lệnh không hợp lệ
         endcase
+
+        if (is_illegal_o) begin
+            $display("DEBUG CTRL: op_i=%b, funct3=%b, is_illegal=1", op_i, funct3_i);
+        end
     end
 
     // =================================================================

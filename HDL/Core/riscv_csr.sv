@@ -20,9 +20,11 @@ module riscv_csr (
     input  logic        is_ebreak_i,
     input  logic        is_mret_i,
     input  logic        is_illegal_i,
+    input  logic        is_interrupt_i,
     input  logic [31:0] pc_wb_i,
     
     // Trap outputs
+    output logic        take_interrupt_o,
     output logic        trap_o,
     output logic        mret_o,
     output logic [31:0] epc_o,
@@ -46,7 +48,10 @@ module riscv_csr (
     logic [31:0] mepc;
     logic [31:0] mcause;
     logic [31:0] mtval;
-    logic [31:0] mip;
+    wire  [31:0] mip;
+    
+    // Hardcoded Interrupt Pending logic
+    assign mip = {20'b0, ext_irq_i, 3'b0, timer_irq_i, 7'b0}; // mip[11]=MEIP, mip[7]=MTIP
     
     logic [63:0] mcycle;
     logic [63:0] minstret;
@@ -63,37 +68,40 @@ module riscv_csr (
     // =================================================================
     always_comb begin
         csr_illegal_o = 1'b0;
-        case (csr_addr_i)
-            // Machine Information Registers
-            12'hF11: csr_rd_o = mvendorid;
-            12'hF12: csr_rd_o = marchid;
-            12'hF13: csr_rd_o = mimpid;
-            12'hF14: csr_rd_o = mhartid;
-            
-            // Machine Trap Setup
-            12'h300: csr_rd_o = mstatus;
-            12'h301: csr_rd_o = misa;
-            12'h304: csr_rd_o = mie;
-            12'h305: csr_rd_o = mtvec;
-            
-            // Machine Trap Handling
-            12'h340: csr_rd_o = mscratch;
-            12'h341: csr_rd_o = mepc;
-            12'h342: csr_rd_o = mcause;
-            12'h343: csr_rd_o = mtval;
-            12'h344: csr_rd_o = mip;
-            
-            // Performance Counters
-            12'hB00: csr_rd_o = mcycle[31:0];
-            12'hB80: csr_rd_o = mcycle[63:32];
-            12'hB02: csr_rd_o = minstret[31:0];
-            12'hB82: csr_rd_o = minstret[63:32];
-            
-            default: begin
-                csr_rd_o      = 32'b0;
-                csr_illegal_o = 1'b1;
-            end
-        endcase
+        csr_rd_o      = 32'b0;
+        if (csr_op_i != CSR_NONE) begin
+            case (csr_addr_i)
+                // Machine Information Registers
+                12'hF11: csr_rd_o = mvendorid;
+                12'hF12: csr_rd_o = marchid;
+                12'hF13: csr_rd_o = mimpid;
+                12'hF14: csr_rd_o = mhartid;
+                
+                // Machine Trap Setup
+                12'h300: csr_rd_o = mstatus;
+                12'h301: csr_rd_o = misa;
+                12'h304: csr_rd_o = mie;
+                12'h305: csr_rd_o = mtvec;
+                
+                // Machine Trap Handling
+                12'h340: csr_rd_o = mscratch;
+                12'h341: csr_rd_o = mepc;
+                12'h342: csr_rd_o = mcause;
+                12'h343: csr_rd_o = mtval;
+                12'h344: csr_rd_o = mip;
+                
+                // Performance Counters
+                12'hB00: csr_rd_o = mcycle[31:0];
+                12'hB80: csr_rd_o = mcycle[63:32];
+                12'hB02: csr_rd_o = minstret[31:0];
+                12'hB82: csr_rd_o = minstret[63:32];
+                
+                default: begin
+                    csr_rd_o      = 32'b0;
+                    csr_illegal_o = 1'b1;
+                end
+            endcase
+        end
     end
     
     // =================================================================
@@ -115,15 +123,14 @@ module riscv_csr (
     // TRAP LOGIC
     // =================================================================
     logic take_trap;
-    logic take_interrupt;
     logic take_exception;
     
     // mstatus[3] is MIE (Machine Interrupt Enable)
     // mie[11] is MEIE (Machine External Interrupt Enable)
     // mie[7]  is MTIE (Machine Timer Interrupt Enable)
-    assign take_interrupt = mstatus[3] & ((mie[11] & ext_irq_i) | (mie[7] & timer_irq_i));
-    assign take_exception = is_ecall_i | is_ebreak_i | is_illegal_i;
-    assign take_trap      = take_interrupt | take_exception;
+    assign take_interrupt_o = mstatus[3] & ((mie[11] & mip[11]) | (mie[7] & mip[7]));
+    assign take_exception   = is_ecall_i | is_ebreak_i | is_illegal_i;
+    assign take_trap        = is_interrupt_i | take_exception;
     
     assign trap_o = take_trap;
     assign mret_o = is_mret_i;
@@ -139,7 +146,6 @@ module riscv_csr (
             mepc     <= 32'b0;
             mcause   <= 32'b0;
             mtval    <= 32'b0;
-            mip      <= 32'b0;
             mcycle   <= 64'b0;
             minstret <= 64'b0;
         end else begin
@@ -153,15 +159,18 @@ module riscv_csr (
                 mstatus[7] <= mstatus[3]; // MPIE = MIE
                 mstatus[3] <= 1'b0;       // MIE = 0
                 
-                if (take_interrupt) begin
-                    mcause <= ext_irq_i ? 32'h8000000B : 32'h80000007;
+                if (is_interrupt_i) begin
+                    mcause <= mip[11] ? 32'h8000000B : 32'h80000007;
+                    $display("TRAP: Interrupt! pc=%h, mip=%h", pc_wb_i, mip);
                 end else begin
                     mcause <= is_ecall_i ? 32'd11 : 
                               is_ebreak_i ? 32'd3 : 32'd2; // 11=ECALL, 3=EBREAK, 2=Illegal Inst
+                    $display("TRAP: Exception! pc=%h, ecall=%b, ebreak=%b, illegal=%b", pc_wb_i, is_ecall_i, is_ebreak_i, is_illegal_i);
                 end
             end else if (is_mret_i) begin
                 mstatus[3] <= mstatus[7]; // MIE = MPIE
                 mstatus[7] <= 1'b1;       // MPIE = 1
+                $display("MRET! returning to mepc=%h", mepc);
             end else if (csr_op_i != CSR_NONE) begin
                 // Execute CSR Writes
                 case (csr_addr_i)
@@ -172,7 +181,7 @@ module riscv_csr (
                     12'h341: mepc     <= w_csr_next;
                     12'h342: mcause   <= w_csr_next;
                     12'h343: mtval    <= w_csr_next;
-                    12'h344: mip      <= w_csr_next;
+                    // mip is strictly read-only for hardware interrupts in this implementation
                     default: ; // Do not write to invalid or read-only CSRs
                 endcase
             end

@@ -1,6 +1,10 @@
 `include "config.vh"
 
 module riscv_hazard_unit (
+    // External Stalls from AXI / Memory Wrapper
+    input  logic             ext_stall_if_i,
+    input  logic             ext_stall_mem_i,
+
     // Đầu vào từ ID Stage
     input  logic [4:0]  rs1_addr_id_i,
     input  logic [4:0]  rs2_addr_id_i,
@@ -9,40 +13,56 @@ module riscv_hazard_unit (
     input  logic [4:0]  rs1_addr_ex_i,
     input  logic [4:0]  rs2_addr_ex_i,
     input  logic [4:0]  rd_addr_ex_i,
-    input  result_src_t result_src_ex_i,
-    input  pc_src_t     pc_src_ex_i,
+    input  result_src_t      result_src_ex_i,
+    input  pc_src_t          pc_src_ex_i,
     
-    // Đầu vào từ MEM Stage
-    input  logic [4:0]  rd_addr_mem_i,
-    input  logic        reg_write_mem_i,
+    // Từ MEM stage
+    input  logic [4:0]       rd_addr_mem_i,
+    input  logic             reg_write_mem_i,
+    input  result_src_t      result_src_mem_i,
     
-    // Đầu vào từ WB Stage
-    input  logic [4:0]  rd_addr_wb_i,
-    input  logic        reg_write_wb_i,
+    // Từ WB stage
+    input  logic [4:0]       rd_addr_wb_i,
+    input  logic             reg_write_wb_i,
     
-    // Outputs Stalls (Dừng Pipeline)
-    output logic        stall_if_o,
-    output logic        stall_id_o,
+    // Báo hiệu Trap (để flush)
+    input  logic             trap_i,
+    input  logic             mret_i,
     
-    // Outputs Flushes (Xóa Pipeline)
-    output logic        flush_id_o,
-    output logic        flush_ex_o,
-    output logic        flush_mem_o,
-    output logic        flush_wb_o,
+    // Outputs điều khiển Pipeline
+    output logic             stall_if_o,
+    output logic             stall_id_o,
+    output logic             stall_ex_o,
+    output logic             stall_mem_o,
+    output logic             stall_wb_o,
+
+    output logic             flush_id_o,
+    output logic             flush_ex_o,
+    output logic             flush_mem_o,
+    output logic             flush_wb_o,
     
-    // Tín hiệu Traps / MRET
-    input  logic        trap_i,
-    input  logic        mret_i,
-    
-    // Outputs Forwarding (Chuyển tiếp dữ liệu)
-    output logic [1:0]  forward_a_o,
-    output logic [1:0]  forward_b_o
+    // Outputs điều khiển Forwarding
+    output logic [1:0]       forward_a_o,
+    output logic [1:0]       forward_b_o
 );
 
     logic lw_stall;
 
     // =================================================================
-    // 1. DATA FORWARDING (Giải quyết Data Hazards)
+    // 1. DATA HAZARD (LOAD-USE & CSR-USE) & STALL LOGIC
+    // =================================================================
+    logic load_use_hazard;
+    assign load_use_hazard = ((result_src_ex_i == RES_MEM || result_src_ex_i == RES_CSR) && 
+                              (rd_addr_ex_i != 0) &&
+                              ((rd_addr_ex_i == rs1_addr_id_i) || (rd_addr_ex_i == rs2_addr_id_i))) ||
+                             ((result_src_mem_i == RES_CSR) &&
+                              (rd_addr_mem_i != 0) &&
+                              ((rd_addr_mem_i == rs1_addr_id_i) || (rd_addr_mem_i == rs2_addr_id_i)));
+
+
+
+    // =================================================================
+    // 2. DATA FORWARDING (Giải quyết Data Hazards)
     // =================================================================
     // Forward cho Toán hạng A (rs1) ở EX Stage
     always_comb begin
@@ -64,44 +84,47 @@ module riscv_hazard_unit (
             forward_b_o = 2'b00; 
     end
 
-    // =================================================================
-    // 2. LOAD-USE STALLING (Dừng khi đọc dữ liệu từ Memory)
-    // =================================================================
-    // Nếu lệnh ở EX là LOAD (result_src_ex == RES_MEM) và lệnh ở ID cần dùng rd đó
     always_comb begin
-        if ((result_src_ex_i == RES_MEM) && ((rd_addr_ex_i == rs1_addr_id_i) || (rd_addr_ex_i == rs2_addr_id_i)))
-            lw_stall = 1'b1;
-        else
-            lw_stall = 1'b0;
+        lw_stall = load_use_hazard;
     end
 
     // =================================================================
     // 3. CONTROL HAZARDS (Flush khi có Branch/Jump)
     // =================================================================
-    // Nếu Branch hoặc Jump được tính là TAKEN ở EX stage (pc_src != PC_PLUS_4)
     logic branch_taken;
     assign branch_taken = (pc_src_ex_i != PC_PLUS_4);
+
+    logic do_flush;
+    // Chỉ thực hiện flush do Branch/Trap khi hệ thống KHÔNG BỊ STALL BỞI AXI
+    // Nếu đang bị stall bởi AXI, ta phải giữ nguyên trạng thái EX để chờ AXI xong
+    assign do_flush = (branch_taken | trap_i | mret_i) & ~ext_stall_if_i & ~ext_stall_mem_i;
+
+    // Lệnh gây load-use stall nằm ở ID stage. Nếu có do_flush (nhảy/trap), lệnh ở ID sẽ bị huỷ,
+    // nên ta bỏ qua lw_stall để cho phép PC cập nhật đúng địa chỉ nhảy.
+    logic effective_lw_stall;
+    assign effective_lw_stall = lw_stall & ~do_flush;
 
     // =================================================================
     // 4. TỔNG HỢP STALL VÀ FLUSH
     // =================================================================
-    assign stall_if_o = lw_stall;
-    assign stall_id_o = lw_stall;
     
-    // Nếu có trap hoặc mret, ta xoá toàn bộ Pipeline
-    logic is_trap_mret;
-    assign is_trap_mret = trap_i | mret_i;
+    // Stall Signals
+    assign stall_if_o  = effective_lw_stall | ext_stall_if_i | ext_stall_mem_i;
+    assign stall_id_o  = effective_lw_stall | ext_stall_if_i | ext_stall_mem_i;
+    assign stall_ex_o  = ext_stall_if_i | ext_stall_mem_i;
+    assign stall_mem_o = ext_stall_if_i | ext_stall_mem_i;
+    assign stall_wb_o  = ext_stall_if_i | ext_stall_mem_i;
+
+    // Flush Signals
+    // ID stage bị flush khi có nhảy/trap. 
+    assign flush_id_o  = do_flush;
     
-    // Xoá MEM/WB khi Trap
-    assign flush_wb_o = is_trap_mret;
+    // EX stage bị flush khi có nhảy/trap, HOẶC khi load-use stall (chèn bubble)
+    // CHÚ Ý: KHÔNG ĐƯỢC flush nếu pipeline đang bị STALL bởi AXI, vì sẽ làm mất lệnh đang ở EX!
+    assign flush_ex_o  = (do_flush | effective_lw_stall) & ~ext_stall_if_i & ~ext_stall_mem_i;
     
-    // Xoá EX/MEM khi Trap
-    assign flush_mem_o = is_trap_mret;
-    
-    // Xoá ID/EX khi Stall hoặc khi Branch Taken hoặc Trap
-    assign flush_ex_o = lw_stall | branch_taken | is_trap_mret;
-    
-    // Xoá IF/ID khi Branch Taken hoặc Trap
-    assign flush_id_o = branch_taken | is_trap_mret;
+    // MEM và WB chỉ bị flush khi có trap/mret
+    assign flush_mem_o = (trap_i | mret_i) & ~ext_stall_if_i & ~ext_stall_mem_i;
+    assign flush_wb_o  = (trap_i | mret_i) & ~ext_stall_if_i & ~ext_stall_mem_i;
 
 endmodule

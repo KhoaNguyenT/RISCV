@@ -18,10 +18,18 @@ module riscv_if_stage (
     input  logic [`XLEN-1:0] tvec_i,
     input  logic [`XLEN-1:0] epc_i,
     
+    // Hardware Interrupts
+    input  logic             take_interrupt_i,
+    
+    // Output tới Instruction Memory
+    output logic [`XLEN-1:0] imem_addr_o,
+    input  logic [`XLEN-1:0] imem_rdata_i,
+    
     // Output gửi sang IF/ID Register
     output logic [`XLEN-1:0] pc_o,
     output logic [`XLEN-1:0] pc_plus_4_o,
-    output logic [`XLEN-1:0] instr_o
+    output logic [`XLEN-1:0] instr_o,
+    output logic             is_interrupt_o
 );
 
     // =================================================================
@@ -45,10 +53,19 @@ module riscv_if_stage (
         .pc_plus_4_o  (pc_plus_4_o)
     );
 
-    // Instruction Memory (Sử dụng Async RAM chuẩn của Single-Cycle để dễ debug)
-    riscv_imem u_imem (
-        .addr_i  (pc_o),
-        .instr_o (instr_o)
-    );
+    // Xuất địa chỉ lệnh ra bộ nhớ ngoài
+    assign imem_addr_o = pc_o;
+    
+    // Interrupt Bubble Injection
+    // Nếu có ngắt, lệnh bị chặn lại và thay thế bằng NOP (0x00000013)
+    always_comb begin
+        if (take_interrupt_i) begin
+            instr_o        = 32'h00000013; // NOP
+            is_interrupt_o = 1'b1;         // Đánh dấu là NOP do ngắt
+        end else begin
+            instr_o        = imem_rdata_i;
+            is_interrupt_o = 1'b0;
+        end
+    end
 
 endmodule
