@@ -26,7 +26,8 @@ A fully functional **32-bit RISC-V Processor (RV32I base integer instruction set
 RISCV-basic/
 ├── HDL/
 │   ├── Core/
-│   │   └── riscv_core.sv             # Top-Level Pipeline
+│   │   ├── riscv_core.sv              # Top-Level Pipeline
+│   │   └── riscv_csr.sv               # Control and Status Registers
 │   ├── Front_End/
 │   │   ├── IF_Stage/                  # Instruction Fetch
 │   │   │   ├── riscv_if_stage.sv
@@ -48,12 +49,21 @@ RISCV-basic/
 │   │   │   └── riscv_dmem.sv
 │   │   └── WB_Stage/                  # Write Back
 │   │       └── riscv_wb_stage.sv
-│   └── Pipeline_Control/
-│       ├── riscv_pipeline_regs.sv     # IF/ID, ID/EX, EX/MEM, MEM/WB
-│       └── riscv_hazard_unit.sv       # Forwarding, Stalling, Flushing
+│   ├── Pipeline_Control/
+│   │   ├── riscv_pipeline_regs.sv     # IF/ID, ID/EX, EX/MEM, MEM/WB
+│   │   └── riscv_hazard_unit.sv       # Forwarding, Stalling, Flushing
+│   └── Bus_Interface/
+│       └── AXI4/
+│           ├── riscv_axi_master.sv    # AXI4-Lite Master Wrapper
+│           ├── riscv_axi_memory_slave.sv # AXI4-Lite SRAM Slave
+│           └── riscv_axi_top.sv       # AXI4-Lite Top Integration
 ├── Docs/
 │   ├── Pipeline_Architecture.drawio   # Architecture diagram (open with draw.io)
-│   └── CSR_Privileged_Architecture_Class.md
+│   ├── AXI4_Wrapper_Architecture.drawio # AXI4 Wrapper diagram
+│   ├── Architecture.drawio            # System Architecture
+│   ├── RISCV_Datapath.drawio          # Datapath diagram
+│   ├── CSR_Privileged_Architecture_Class.md # CSR Documentation
+│   └── RISCV32I_Zicsr_Technical_Documentation.md # Technical Docs
 ├── include/
 │   ├── config.vh                      # Global defines (XLEN, MEM_DEPTH)
 │   └── riscv_axi_pkg.sv               # AXI4-Lite struct and enum definitions
@@ -62,13 +72,17 @@ RISCV-basic/
 │   │   ├── testcase_hazards.s
 │   │   ├── testcase_alu.s
 │   │   ├── testcase_ls.s
-│   │   └── testcase_branch.s
+│   │   ├── testcase_branch.s
+│   │   ├── testcase_csr.s
+│   │   ├── testcase_trap.s
+│   │   └── testcase_irq.s
 │   ├── hex/                           # Auto-generated .mem files
 │   ├── scripts/
 │   │   ├── link.ld                    # Bare-metal linker script
 │   │   └── bin2mem.py                 # Binary to Verilog hex converter
-│   ├── tb_riscv_core.sv              # Main testbench
-│   └── tb_riscv_alu.sv
+│   ├── tb_riscv_core.sv               # Native core testbench
+│   ├── tb_riscv_axi.sv                # AXI wrapper testbench
+│   └── tb_riscv_alu.sv                # ALU unit test
 ├── Makefile                           # 🔧 Automated build system
 └── README.md
 ```
@@ -139,6 +153,9 @@ Each test also generates a `.dump` disassembly file so you can inspect the exact
 | `testcase_alu` | All R-type and I-type ALU operations, LUI, AUIPC |
 | `testcase_ls` | SW/LW, SH/LH/LHU, SB/LB/LBU, Little-Endian byte order |
 | `testcase_branch` | BEQ, BNE, BLT, BGE, BLTU, BGEU, JAL, JALR |
+| `testcase_csr` | CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI |
+| `testcase_trap` | ECALL, EBREAK, MRET, Exception Delegation |
+| `testcase_irq` | Timer Interrupts and External Interrupts |
 
 ### Adding a New Test
 
@@ -159,12 +176,12 @@ No Makefile modification needed — tests are **auto-discovered**.
 ## 🗺 Future Roadmap
 
 - [x] AXI4-Lite Wrapper & Hazard Synchronization Fixes
-- [ ] TileLink-UL Wrapper Integration
-- [ ] Zicsr Extension (CSR Registers)
-- [ ] Machine-Mode Privileged Architecture
-- [ ] `ECALL` / `EBREAK` / `MRET` instructions
-- [ ] Interrupt & Exception Handling
+- [x] Zicsr Extension (CSR Registers)
+- [x] Machine-Mode Privileged Architecture
+- [x] `ECALL` / `EBREAK` / `MRET` instructions
+- [x] Interrupt & Exception Handling
 - [ ] Performance Counters (`mcycle`, `minstret`)
+- [ ] TileLink-UL Wrapper Integration
 
 ---
 
