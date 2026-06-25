@@ -66,6 +66,31 @@ package riscv_axi_pkg;
         axi_resp_e   rresp;
     } axi_r_payload_t;
 
+    // -----------------------------------------
+    // AXI4-Lite Request and Response Structs
+    // -----------------------------------------
+    
+    typedef struct packed {
+        axi_aw_payload_t aw;
+        logic            aw_valid;
+        axi_w_payload_t  w;
+        logic            w_valid;
+        logic            b_ready;
+        axi_ar_payload_t ar;
+        logic            ar_valid;
+        logic            r_ready;
+    } axi_req_t;
+
+    typedef struct packed {
+        logic            aw_ready;
+        logic            w_ready;
+        axi_b_payload_t  b;
+        logic            b_valid;
+        logic            ar_ready;
+        axi_r_payload_t  r;
+        logic            r_valid;
+    } axi_resp_t;
+
 endpackage
 
 `endif // RISCV_AXI_PKG_SV

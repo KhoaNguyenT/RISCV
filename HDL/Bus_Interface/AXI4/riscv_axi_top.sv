@@ -1,5 +1,7 @@
 `default_nettype none
 
+import riscv_axi_pkg::*;
+
 module riscv_axi_top (
     input  wire         clk_i,
     input  wire         rst_n_i,
@@ -11,54 +13,14 @@ module riscv_axi_top (
     // ---------------------------------------------------------
     // AXI4-Lite Instruction Interface (Master)
     // ---------------------------------------------------------
-    // AR Channel
-    output logic [31:0] m_axi_if_araddr,
-    output logic        m_axi_if_arvalid,
-    input  wire         m_axi_if_arready,
-    // R Channel
-    input  wire [31:0]  m_axi_if_rdata,
-    input  wire [1:0]   m_axi_if_rresp,
-    input  wire         m_axi_if_rvalid,
-    output logic        m_axi_if_rready,
-    // AW Channel (Unused for IF)
-    output logic [31:0] m_axi_if_awaddr,
-    output logic        m_axi_if_awvalid,
-    input  wire         m_axi_if_awready,
-    // W Channel (Unused for IF)
-    output logic [31:0] m_axi_if_wdata,
-    output logic [3:0]  m_axi_if_wstrb,
-    output logic        m_axi_if_wvalid,
-    input  wire         m_axi_if_wready,
-    // B Channel (Unused for IF)
-    input  wire [1:0]   m_axi_if_bresp,
-    input  wire         m_axi_if_bvalid,
-    output logic        m_axi_if_bready,
+    output axi_req_t  m_axi_if_req,
+    input  axi_resp_t m_axi_if_resp,
 
     // ---------------------------------------------------------
     // AXI4-Lite Data Interface (Master)
     // ---------------------------------------------------------
-    // AR Channel
-    output logic [31:0] m_axi_dmem_araddr,
-    output logic        m_axi_dmem_arvalid,
-    input  wire         m_axi_dmem_arready,
-    // R Channel
-    input  wire [31:0]  m_axi_dmem_rdata,
-    input  wire [1:0]   m_axi_dmem_rresp,
-    input  wire         m_axi_dmem_rvalid,
-    output logic        m_axi_dmem_rready,
-    // AW Channel
-    output logic [31:0] m_axi_dmem_awaddr,
-    output logic        m_axi_dmem_awvalid,
-    input  wire         m_axi_dmem_awready,
-    // W Channel
-    output logic [31:0] m_axi_dmem_wdata,
-    output logic [3:0]  m_axi_dmem_wstrb,
-    output logic        m_axi_dmem_wvalid,
-    input  wire         m_axi_dmem_wready,
-    // B Channel
-    input  wire [1:0]   m_axi_dmem_bresp,
-    input  wire         m_axi_dmem_bvalid,
-    output logic        m_axi_dmem_bready
+    output axi_req_t  m_axi_dmem_req,
+    input  axi_resp_t m_axi_dmem_resp
 );
 
     // Core Interconnect Wires
@@ -116,23 +78,8 @@ module riscv_axi_top (
         .stall_o       (core_stall_if),
 
         // AXI4-Lite Interface
-        .m_axi_araddr  (m_axi_if_araddr),
-        .m_axi_arvalid (m_axi_if_arvalid),
-        .m_axi_arready (m_axi_if_arready),
-        .m_axi_rdata   (m_axi_if_rdata),
-        .m_axi_rresp   (m_axi_if_rresp),
-        .m_axi_rvalid  (m_axi_if_rvalid),
-        .m_axi_rready  (m_axi_if_rready),
-        .m_axi_awaddr  (m_axi_if_awaddr),
-        .m_axi_awvalid (m_axi_if_awvalid),
-        .m_axi_awready (m_axi_if_awready),
-        .m_axi_wdata   (m_axi_if_wdata),
-        .m_axi_wstrb   (m_axi_if_wstrb),
-        .m_axi_wvalid  (m_axi_if_wvalid),
-        .m_axi_wready  (m_axi_if_wready),
-        .m_axi_bresp   (m_axi_if_bresp),
-        .m_axi_bvalid  (m_axi_if_bvalid),
-        .m_axi_bready  (m_axi_if_bready)
+        .m_axi_req     (m_axi_if_req),
+        .m_axi_resp    (m_axi_if_resp)
     );
 
     // =================================================================
@@ -156,23 +103,8 @@ module riscv_axi_top (
         .stall_o       (core_stall_mem),
 
         // AXI4-Lite Interface
-        .m_axi_araddr  (m_axi_dmem_araddr),
-        .m_axi_arvalid (m_axi_dmem_arvalid),
-        .m_axi_arready (m_axi_dmem_arready),
-        .m_axi_rdata   (m_axi_dmem_rdata),
-        .m_axi_rresp   (m_axi_dmem_rresp),
-        .m_axi_rvalid  (m_axi_dmem_rvalid),
-        .m_axi_rready  (m_axi_dmem_rready),
-        .m_axi_awaddr  (m_axi_dmem_awaddr),
-        .m_axi_awvalid (m_axi_dmem_awvalid),
-        .m_axi_awready (m_axi_dmem_awready),
-        .m_axi_wdata   (m_axi_dmem_wdata),
-        .m_axi_wstrb   (m_axi_dmem_wstrb),
-        .m_axi_wvalid  (m_axi_dmem_wvalid),
-        .m_axi_wready  (m_axi_dmem_wready),
-        .m_axi_bresp   (m_axi_dmem_bresp),
-        .m_axi_bvalid  (m_axi_dmem_bvalid),
-        .m_axi_bready  (m_axi_dmem_bready)
+        .m_axi_req     (m_axi_dmem_req),
+        .m_axi_resp    (m_axi_dmem_resp)
     );
 
 endmodule

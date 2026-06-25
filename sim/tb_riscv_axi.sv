@@ -2,6 +2,8 @@
 
 module tb_riscv_axi();
 
+    import riscv_axi_pkg::*;
+
     // Khai báo tín hiệu kích thích (Stimulus)
     logic clk_i;
     logic rst_n_i;
@@ -11,42 +13,12 @@ module tb_riscv_axi();
     logic timer_irq;
 
     // AXI4-Lite Instruction Interface
-    logic [31:0] m_axi_if_araddr;
-    logic        m_axi_if_arvalid;
-    logic        m_axi_if_arready;
-    logic [31:0] m_axi_if_rdata;
-    logic [1:0]  m_axi_if_rresp;
-    logic        m_axi_if_rvalid;
-    logic        m_axi_if_rready;
-    logic [31:0] m_axi_if_awaddr;
-    logic        m_axi_if_awvalid;
-    logic        m_axi_if_awready;
-    logic [31:0] m_axi_if_wdata;
-    logic [3:0]  m_axi_if_wstrb;
-    logic        m_axi_if_wvalid;
-    logic        m_axi_if_wready;
-    logic [1:0]  m_axi_if_bresp;
-    logic        m_axi_if_bvalid;
-    logic        m_axi_if_bready;
+    axi_req_t  m_axi_if_req;
+    axi_resp_t m_axi_if_resp;
 
     // AXI4-Lite Data Interface
-    logic [31:0] m_axi_dmem_araddr;
-    logic        m_axi_dmem_arvalid;
-    logic        m_axi_dmem_arready;
-    logic [31:0] m_axi_dmem_rdata;
-    logic [1:0]  m_axi_dmem_rresp;
-    logic        m_axi_dmem_rvalid;
-    logic        m_axi_dmem_rready;
-    logic [31:0] m_axi_dmem_awaddr;
-    logic        m_axi_dmem_awvalid;
-    logic        m_axi_dmem_awready;
-    logic [31:0] m_axi_dmem_wdata;
-    logic [3:0]  m_axi_dmem_wstrb;
-    logic        m_axi_dmem_wvalid;
-    logic        m_axi_dmem_wready;
-    logic [1:0]  m_axi_dmem_bresp;
-    logic        m_axi_dmem_bvalid;
-    logic        m_axi_dmem_bready;
+    axi_req_t  m_axi_dmem_req;
+    axi_resp_t m_axi_dmem_resp;
 
     // DUT
     riscv_axi_top u_axi_top (
@@ -56,42 +28,12 @@ module tb_riscv_axi();
         .timer_irq_i        (timer_irq),
         
         // IF AXI
-        .m_axi_if_araddr    (m_axi_if_araddr),
-        .m_axi_if_arvalid   (m_axi_if_arvalid),
-        .m_axi_if_arready   (m_axi_if_arready),
-        .m_axi_if_rdata     (m_axi_if_rdata),
-        .m_axi_if_rresp     (m_axi_if_rresp),
-        .m_axi_if_rvalid    (m_axi_if_rvalid),
-        .m_axi_if_rready    (m_axi_if_rready),
-        .m_axi_if_awaddr    (m_axi_if_awaddr),
-        .m_axi_if_awvalid   (m_axi_if_awvalid),
-        .m_axi_if_awready   (m_axi_if_awready),
-        .m_axi_if_wdata     (m_axi_if_wdata),
-        .m_axi_if_wstrb     (m_axi_if_wstrb),
-        .m_axi_if_wvalid    (m_axi_if_wvalid),
-        .m_axi_if_wready    (m_axi_if_wready),
-        .m_axi_if_bresp     (m_axi_if_bresp),
-        .m_axi_if_bvalid    (m_axi_if_bvalid),
-        .m_axi_if_bready    (m_axi_if_bready),
+        .m_axi_if_req     (m_axi_if_req),
+        .m_axi_if_resp    (m_axi_if_resp),
         
         // DMEM AXI
-        .m_axi_dmem_araddr  (m_axi_dmem_araddr),
-        .m_axi_dmem_arvalid (m_axi_dmem_arvalid),
-        .m_axi_dmem_arready (m_axi_dmem_arready),
-        .m_axi_dmem_rdata   (m_axi_dmem_rdata),
-        .m_axi_dmem_rresp   (m_axi_dmem_rresp),
-        .m_axi_dmem_rvalid  (m_axi_dmem_rvalid),
-        .m_axi_dmem_rready  (m_axi_dmem_rready),
-        .m_axi_dmem_awaddr  (m_axi_dmem_awaddr),
-        .m_axi_dmem_awvalid (m_axi_dmem_awvalid),
-        .m_axi_dmem_awready (m_axi_dmem_awready),
-        .m_axi_dmem_wdata   (m_axi_dmem_wdata),
-        .m_axi_dmem_wstrb   (m_axi_dmem_wstrb),
-        .m_axi_dmem_wvalid  (m_axi_dmem_wvalid),
-        .m_axi_dmem_wready  (m_axi_dmem_wready),
-        .m_axi_dmem_bresp   (m_axi_dmem_bresp),
-        .m_axi_dmem_bvalid  (m_axi_dmem_bvalid),
-        .m_axi_dmem_bready  (m_axi_dmem_bready)
+        .m_axi_dmem_req   (m_axi_dmem_req),
+        .m_axi_dmem_resp  (m_axi_dmem_resp)
     );
 
     // IMEM Slave
@@ -100,23 +42,8 @@ module tb_riscv_axi();
     ) u_imem_slave (
         .clk_i         (clk_i),
         .rst_n_i       (rst_n_i),
-        .s_axi_araddr  (m_axi_if_araddr),
-        .s_axi_arvalid (m_axi_if_arvalid),
-        .s_axi_arready (m_axi_if_arready),
-        .s_axi_rdata   (m_axi_if_rdata),
-        .s_axi_rresp   (m_axi_if_rresp),
-        .s_axi_rvalid  (m_axi_if_rvalid),
-        .s_axi_rready  (m_axi_if_rready),
-        .s_axi_awaddr  (m_axi_if_awaddr),
-        .s_axi_awvalid (m_axi_if_awvalid),
-        .s_axi_awready (m_axi_if_awready),
-        .s_axi_wdata   (m_axi_if_wdata),
-        .s_axi_wstrb   (m_axi_if_wstrb),
-        .s_axi_wvalid  (m_axi_if_wvalid),
-        .s_axi_wready  (m_axi_if_wready),
-        .s_axi_bresp   (m_axi_if_bresp),
-        .s_axi_bvalid  (m_axi_if_bvalid),
-        .s_axi_bready  (m_axi_if_bready)
+        .s_axi_req     (m_axi_if_req),
+        .s_axi_resp    (m_axi_if_resp)
     );
 
     // DMEM Slave
@@ -125,23 +52,8 @@ module tb_riscv_axi();
     ) u_dmem_slave (
         .clk_i         (clk_i),
         .rst_n_i       (rst_n_i),
-        .s_axi_araddr  (m_axi_dmem_araddr),
-        .s_axi_arvalid (m_axi_dmem_arvalid),
-        .s_axi_arready (m_axi_dmem_arready),
-        .s_axi_rdata   (m_axi_dmem_rdata),
-        .s_axi_rresp   (m_axi_dmem_rresp),
-        .s_axi_rvalid  (m_axi_dmem_rvalid),
-        .s_axi_rready  (m_axi_dmem_rready),
-        .s_axi_awaddr  (m_axi_dmem_awaddr),
-        .s_axi_awvalid (m_axi_dmem_awvalid),
-        .s_axi_awready (m_axi_dmem_awready),
-        .s_axi_wdata   (m_axi_dmem_wdata),
-        .s_axi_wstrb   (m_axi_dmem_wstrb),
-        .s_axi_wvalid  (m_axi_dmem_wvalid),
-        .s_axi_wready  (m_axi_dmem_wready),
-        .s_axi_bresp   (m_axi_dmem_bresp),
-        .s_axi_bvalid  (m_axi_dmem_bvalid),
-        .s_axi_bready  (m_axi_dmem_bready)
+        .s_axi_req     (m_axi_dmem_req),
+        .s_axi_resp    (m_axi_dmem_resp)
     );
 
     // Kịch bản Test
@@ -209,17 +121,17 @@ module tb_riscv_axi();
 
     // Monitor AXI Transactions
     always @(posedge clk_i) begin
-        if (m_axi_dmem_awvalid && m_axi_dmem_awready) begin
-            $display("AXI DMEM WRITE ADDR: 0x%08X", m_axi_dmem_awaddr);
+        if (m_axi_dmem_req.aw_valid && m_axi_dmem_resp.aw_ready) begin
+            $display("AXI DMEM WRITE ADDR: 0x%08X", m_axi_dmem_req.aw.awaddr);
         end
-        if (m_axi_dmem_wvalid && m_axi_dmem_wready) begin
-            $display("AXI DMEM WRITE DATA: 0x%08X, STRB: %b", m_axi_dmem_wdata, m_axi_dmem_wstrb);
+        if (m_axi_dmem_req.w_valid && m_axi_dmem_resp.w_ready) begin
+            $display("AXI DMEM WRITE DATA: 0x%08X, STRB: %b", m_axi_dmem_req.w.wdata, m_axi_dmem_req.w.wstrb);
         end
-        if (m_axi_dmem_arvalid && m_axi_dmem_arready) begin
-            $display("AXI DMEM READ ADDR: 0x%08X", m_axi_dmem_araddr);
+        if (m_axi_dmem_req.ar_valid && m_axi_dmem_resp.ar_ready) begin
+            $display("AXI DMEM READ ADDR: 0x%08X", m_axi_dmem_req.ar.araddr);
         end
-        if (m_axi_dmem_rvalid && m_axi_dmem_rready) begin
-            $display("AXI DMEM READ DATA: 0x%08X", m_axi_dmem_rdata);
+        if (m_axi_dmem_resp.r_valid && m_axi_dmem_req.r_ready) begin
+            $display("AXI DMEM READ DATA: 0x%08X", m_axi_dmem_resp.r.rdata);
         end
     end
 

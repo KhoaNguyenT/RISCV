@@ -55,10 +55,10 @@ VFLAGS += --Mdir $(OBJ_DIR)
 VFLAGS += +define+MEM_INIT_FILE=\"$(MEM_FILE)\"
 VFLAGS += +define+EXPECT_INIT_FILE=\"$(EXPECT_FILE)\"
 VFLAGS += -Wno-EOFNEWLINE -Wno-TIMESCALEMOD -Wno-WIDTHEXPAND
-VFLAGS += -Wno-UNUSED -Wno-PINCONNECTEMPTY -Wno-DECLFILENAME
+VFLAGS += -Wno-UNUSED -Wno-PINCONNECTEMPTY -Wno-DECLFILENAME -Wno-IMPORTSTAR
 
 # ─── 5. SOURCE FILE DISCOVERY ───────────────────────────────
-RTL_SRCS = $(shell find $(HDL_DIR) -name "*.v" -o -name "*.sv")
+RTL_SRCS = $(shell find $(INC_DIR) -name "*_pkg.sv") $(shell find $(HDL_DIR) -name "*.v" -o -name "*.sv")
 SIM_SRCS = $(shell find $(SIM_DIR) -name "*.v" -o -name "*.sv")
 INC_FLAGS = +incdir+$(INC_DIR)
 EXECUTABLE = $(OBJ_DIR)/V$(TOP_MODULE)
