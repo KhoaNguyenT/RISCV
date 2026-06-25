@@ -15,6 +15,7 @@ A fully functional **32-bit RISC-V Processor (RV32I base integer instruction set
 | **Branch Flush** | Pipeline flush on taken Branch/Jump (2-cycle penalty) |
 | **RegFile Bypass** | Internal write-through for WB→ID same-cycle forwarding |
 | **Memory** | Advanced LSU with Byte/Halfword/Word (Signed & Unsigned) |
+| **Bus Interfaces**| **AXI4-Lite** Master Wrapper & Testbench integration |
 | **BRAM Ready** | `(* ram_style = "block" *)` attributes for FPGA synthesis |
 
 ---
@@ -156,6 +157,8 @@ No Makefile modification needed — tests are **auto-discovered**.
 
 ## 🗺 Future Roadmap
 
+- [x] AXI4-Lite Wrapper & Hazard Synchronization Fixes
+- [ ] TileLink-UL Wrapper Integration
 - [ ] Zicsr Extension (CSR Registers)
 - [ ] Machine-Mode Privileged Architecture
 - [ ] `ECALL` / `EBREAK` / `MRET` instructions
