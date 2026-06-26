@@ -21,8 +21,8 @@ OBJCOPY = $(TOOLCHAIN_PREFIX)objcopy
 OBJDUMP = $(TOOLCHAIN_PREFIX)objdump
 SIZE      = $(TOOLCHAIN_PREFIX)size
 
-# RV32I Architecture with Zicsr
-RV_ARCH = rv32i_zicsr
+# RV32IM Architecture with Zicsr
+RV_ARCH = rv32im_zicsr
 RV_ABI  = ilp32
 
 # Compiler flags: bare-metal RV32I, no stdlib

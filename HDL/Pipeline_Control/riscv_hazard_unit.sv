@@ -8,6 +8,9 @@ module riscv_hazard_unit (
     // External Stalls from AXI / Memory Wrapper
     input  logic             ext_stall_if_i,
     input  logic             ext_stall_mem_i,
+    
+    // Internal Stalls from Multi-cycle Execution (M-Extension)
+    input  logic             stall_multdiv_i,
 
     // Đầu vào từ ID Stage
     input  logic [4:0]  rs1_addr_id_i,
@@ -132,12 +135,15 @@ module riscv_hazard_unit (
     // 4. TỔNG HỢP STALL VÀ FLUSH
     // =================================================================
     
-    // Stall Signals
-    assign stall_if_o  = effective_lw_stall | ext_stall_if_i | ext_stall_mem_i;
-    assign stall_id_o  = effective_lw_stall | ext_stall_if_i | ext_stall_mem_i;
-    assign stall_ex_o  = ext_stall_if_i | ext_stall_mem_i;
-    assign stall_mem_o = ext_stall_if_i | ext_stall_mem_i;
-    assign stall_wb_o  = ext_stall_if_i | ext_stall_mem_i;
+    // Stall Signals (Stall toàn bộ pipeline khi AXI đợi hoặc MultDiv đang tính)
+    logic global_stall;
+    assign global_stall = ext_stall_if_i | ext_stall_mem_i | stall_multdiv_i;
+    
+    assign stall_if_o  = effective_lw_stall | global_stall;
+    assign stall_id_o  = effective_lw_stall | global_stall;
+    assign stall_ex_o  = global_stall;
+    assign stall_mem_o = global_stall;
+    assign stall_wb_o  = global_stall;
 
     // Flush Signals
     // ID stage bị flush khi có nhảy/trap. 

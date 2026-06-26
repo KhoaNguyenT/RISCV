@@ -1,6 +1,6 @@
-# 🚀 RISC-V 32I 5-Stage Pipelined Processor
+# 🚀 RISC-V 32IM 5-Stage Pipelined Processor
 
-A fully functional **32-bit RISC-V Processor (RV32I base integer instruction set)** written from scratch in **SystemVerilog**. Features a classic **5-Stage Pipeline** architecture with full hazard resolution, designed for simulation with Verilator and synthesis on FPGA.
+A fully functional **32-bit RISC-V Processor (RV32IM instruction set)** written from scratch in **SystemVerilog**. Features a classic **5-Stage Pipeline** architecture with full hazard resolution, designed for simulation with Verilator and synthesis on FPGA.
 
 ---
 
@@ -9,7 +9,8 @@ A fully functional **32-bit RISC-V Processor (RV32I base integer instruction set
 | Feature | Description |
 |:---|:---|
 | **Architecture** | 5-Stage Pipeline (IF → ID → EX → MEM → WB) |
-| **ISA** | Full RV32I Base Integer Instruction Set (37 instructions) |
+| **ISA** | Full RV32I Base Integer Instruction Set + M-Extension (Multiplication & Division) |
+| **Hardware Math** | 1-cycle Combinational Multiplier & 33-cycle Iterative Divider |
 | **Data Forwarding** | EX→EX and MEM→EX forwarding resolves RAW hazards |
 | **Load-Use Stall** | Automatic 1-cycle stall when reading memory-dependent data |
 | **Branch Flush** | Pipeline flush on taken Branch/Jump (2-cycle penalty) |
@@ -149,6 +150,7 @@ Each test also generates a `.dump` disassembly file so you can inspect the exact
 | `testcase_alu` | All R-type and I-type ALU operations, LUI, AUIPC |
 | `testcase_ls` | SW/LW, SH/LH/LHU, SB/LB/LBU, Little-Endian byte order |
 | `testcase_branch` | BEQ, BNE, BLT, BGE, BLTU, BGEU, JAL, JALR |
+| `testcase_multdiv`| MUL, MULH, MULHSU, MULHU, DIV, DIVU, REM, REMU (RV32M) |
 | `testcase_csr` | CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI |
 | `testcase_trap` | ECALL, EBREAK, MRET, Exception Delegation |
 | `testcase_irq` | Timer Interrupts and External Interrupts |
@@ -176,6 +178,8 @@ No Makefile modification needed — tests are **auto-discovered**.
 - [x] Machine-Mode Privileged Architecture
 - [x] `ECALL` / `EBREAK` / `MRET` instructions
 - [x] Interrupt & Exception Handling
+- [x] M-Extension (Hardware Multiplication & Division)
+- [ ] Single-File IP Wrapping (`Core.sv`) for Vivado
 - [ ] Performance Counters (`mcycle`, `minstret`)
 - [ ] TileLink-UL Wrapper Integration
 

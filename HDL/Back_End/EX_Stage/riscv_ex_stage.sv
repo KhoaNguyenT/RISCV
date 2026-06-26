@@ -3,6 +3,7 @@
 module riscv_ex_stage (
     input  logic             clk_i,
     input  logic             rst_n_i,
+    input  logic             flush_ex_i, // Dùng để abort phép chia nếu có trap
     
     // Dữ liệu từ ID/EX Register
     input  logic [`XLEN-1:0] rd1_i,
@@ -35,7 +36,10 @@ module riscv_ex_stage (
     // Tín hiệu CSR (Zicsr)
     input  logic             csr_use_imm_i,
     input  logic [4:0]       rs1_addr_i,
-    output logic [31:0]      csr_wd_o
+    output logic [31:0]      csr_wd_o,
+    
+    // Tín hiệu pipeline stall từ MultDiv
+    output logic             stall_multdiv_o
 );
 
     logic [`XLEN-1:0] w_src_a;
@@ -78,13 +82,35 @@ module riscv_ex_stage (
     // =================================================================
     
     // ALU
+    logic [`XLEN-1:0] w_alu_res;
     riscv_alu u_alu (
         .src_a_i   (w_src_a),
         .src_b_i   (w_src_b),               
         .alu_op_i  (alu_ctrl_i),    
-        .alu_res_o (alu_result_o),
+        .alu_res_o (w_alu_res),
         .zero_o    () // Không dùng Zero từ ALU nữa, dùng Branch Eval
     );
+    
+    // Multiplier/Divider (M-Extension)
+    logic [`XLEN-1:0] w_multdiv_res;
+    riscv_multdiv u_multdiv (
+        .clk_i    (clk_i),
+        .rst_n_i  (rst_n_i),
+        .src_a_i  (w_src_a),
+        .src_b_i  (w_src_b),
+        .alu_op_i (alu_ctrl_i),
+        .flush_i  (flush_ex_i),
+        .result_o (w_multdiv_res),
+        .busy_o   (stall_multdiv_o)
+    );
+    
+    // MUX chọn kết quả cuối cùng của EX Stage
+    always_comb begin
+        if (alu_ctrl_i >= ALU_MUL && alu_ctrl_i <= ALU_REMU)
+            alu_result_o = w_multdiv_res;
+        else
+            alu_result_o = w_alu_res;
+    end
 
     // Branch Evaluator
     riscv_branch_eval u_branch_eval (

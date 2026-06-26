@@ -114,6 +114,7 @@ module riscv_core (
     logic             w_stall_if, w_stall_id, w_stall_ex, w_stall_mem, w_stall_wb;
     logic             w_flush_if, w_flush_id, w_flush_ex, w_flush_mem, w_flush_wb;
     logic [1:0]       w_forward_a, w_forward_b;
+    logic             w_stall_multdiv;
 
     // Debug Mapping
     assign pc_debug_o         = w_pc_if;
@@ -278,6 +279,7 @@ module riscv_core (
     riscv_ex_stage u_ex_stage (
         .clk_i          (clk_i),
         .rst_n_i        (rst_n_i),
+        .flush_ex_i     (w_flush_ex),
         .rd1_i          (w_rd1_ex),
         .rd2_i          (w_rd2_ex),
         .pc_i           (w_pc_ex),
@@ -298,7 +300,8 @@ module riscv_core (
         .write_data_o   (w_write_data_ex),
         .pc_target_o    (w_pc_target_ex),
         .pc_src_o       (w_pc_src_ex),
-        .csr_wd_o       (w_csr_wd_ex)
+        .csr_wd_o       (w_csr_wd_ex),
+        .stall_multdiv_o(w_stall_multdiv)
     );
 
     // [PIPELINE REGISTER: EX/MEM]
@@ -469,6 +472,7 @@ module riscv_core (
         .rst_n_i         (rst_n_i),
         .ext_stall_if_i  (ext_stall_if_i),
         .ext_stall_mem_i (ext_stall_mem_i),
+        .stall_multdiv_i (w_stall_multdiv),
         .rs1_addr_id_i   (w_rs1_addr_id),
         .rs2_addr_id_i   (w_rs2_addr_id),
         .rs1_addr_ex_i   (w_rs1_addr_ex),

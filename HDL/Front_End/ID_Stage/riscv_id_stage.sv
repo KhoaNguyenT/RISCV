@@ -64,6 +64,7 @@ module riscv_id_stage (
         .op_i          (opcode_t'(instr_i[6:0])),
         .funct3_i      (instr_i[14:12]),
         .funct7_5_i    (instr_i[30]),
+        .funct7_0_i    (instr_i[25]),   // M-Extension Decode bit
         .take_branch_i (1'b0),          // Chưa dùng ở ID stage
         .pc_src_o      (),              // Chuyển sang tính ở EX stage
         .result_src_o  (result_src_o),

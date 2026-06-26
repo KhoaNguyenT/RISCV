@@ -5,6 +5,7 @@ module riscv_controller (
     input  opcode_t op_i,         // Lệnh (bits 6:0)
     input  logic [2:0] funct3_i,     // Chức năng 3 (bits 14:12)
     input  logic       funct7_5_i,   // Bit số 30 của lệnh (dùng để phân biệt ADD/SUB, SRL/SRA)
+    input  logic       funct7_0_i,   // Bit số 25 của lệnh (dùng để phân biệt M-Extension)
     
     // Input từ Datapath (Branch Eval)
     input  logic       take_branch_i, // Cờ nhảy từ Branch Evaluator
@@ -58,6 +59,17 @@ module riscv_controller (
         LS_F3_BU = 3'b100, // LBU
         LS_F3_HU = 3'b101  // LHU
     } funct3_ls_t;
+    
+    typedef enum logic [2:0] {
+        M_F3_MUL    = 3'b000,
+        M_F3_MULH   = 3'b001,
+        M_F3_MULHSU = 3'b010,
+        M_F3_MULHU  = 3'b011,
+        M_F3_DIV    = 3'b100,
+        M_F3_DIVU   = 3'b101,
+        M_F3_REM    = 3'b110,
+        M_F3_REMU   = 3'b111
+    } funct3_m_t;
 
     // Tín hiệu nội bộ
     logic [1:0] alu_op;   // Tín hiệu trung gian nối giữa Main Decoder và ALU Decoder
@@ -219,29 +231,47 @@ module riscv_controller (
             2'b01: alu_ctrl_o = ALU_SUB; // (Dự phòng)
             
             2'b10: begin // R-Type hoặc I-Type
-                case (funct3_alu_t'(funct3_i))
-                    ALU_F3_ADD_SUB: begin
-                        // Phân biệt ADD và SUB dựa vào bit 30 và loại lệnh
-                        // (I-Type luôn là ADD, R-Type phụ thuộc bit 30)
-                        if (op_i == OP_R_TYPE && funct7_5_i == 1'b1)
-                            alu_ctrl_o = ALU_SUB;
-                        else
-                            alu_ctrl_o = ALU_ADD;
-                    end
-                    ALU_F3_SLL:  alu_ctrl_o = ALU_SLL;
-                    ALU_F3_SLT:  alu_ctrl_o = ALU_SLT;
-                    ALU_F3_SLTU: alu_ctrl_o = ALU_SLTU;
-                    ALU_F3_XOR:  alu_ctrl_o = ALU_XOR;
-                    ALU_F3_SRL_SRA: begin
-                        if (funct7_5_i == 1'b1)
-                            alu_ctrl_o = ALU_SRA;
-                        else
-                            alu_ctrl_o = ALU_SRL;
-                    end
-                    ALU_F3_OR:   alu_ctrl_o = ALU_OR;
-                    ALU_F3_AND:  alu_ctrl_o = ALU_AND;
-                    default:     alu_ctrl_o = ALU_ADD;
-                endcase
+`ifdef USE_M_EXTENSION
+                // Kiểm tra nếu là R-Type và có bit funct7[0] = 1 (M-Extension)
+                if (op_i == OP_R_TYPE && funct7_0_i == 1'b1) begin
+                    case (funct3_m_t'(funct3_i))
+                        M_F3_MUL:    alu_ctrl_o = ALU_MUL;
+                        M_F3_MULH:   alu_ctrl_o = ALU_MULH;
+                        M_F3_MULHSU: alu_ctrl_o = ALU_MULHSU;
+                        M_F3_MULHU:  alu_ctrl_o = ALU_MULHU;
+                        M_F3_DIV:    alu_ctrl_o = ALU_DIV;
+                        M_F3_DIVU:   alu_ctrl_o = ALU_DIVU;
+                        M_F3_REM:    alu_ctrl_o = ALU_REM;
+                        M_F3_REMU:   alu_ctrl_o = ALU_REMU;
+                        default:     alu_ctrl_o = ALU_ADD;
+                    endcase
+                end else
+`endif
+                begin
+                    case (funct3_alu_t'(funct3_i))
+                        ALU_F3_ADD_SUB: begin
+                            // Phân biệt ADD và SUB dựa vào bit 30 và loại lệnh
+                            // (I-Type luôn là ADD, R-Type phụ thuộc bit 30)
+                            if (op_i == OP_R_TYPE && funct7_5_i == 1'b1)
+                                alu_ctrl_o = ALU_SUB;
+                            else
+                                alu_ctrl_o = ALU_ADD;
+                        end
+                        ALU_F3_SLL:  alu_ctrl_o = ALU_SLL;
+                        ALU_F3_SLT:  alu_ctrl_o = ALU_SLT;
+                        ALU_F3_SLTU: alu_ctrl_o = ALU_SLTU;
+                        ALU_F3_XOR:  alu_ctrl_o = ALU_XOR;
+                        ALU_F3_SRL_SRA: begin
+                            if (funct7_5_i == 1'b1)
+                                alu_ctrl_o = ALU_SRA;
+                            else
+                                alu_ctrl_o = ALU_SRL;
+                        end
+                        ALU_F3_OR:   alu_ctrl_o = ALU_OR;
+                        ALU_F3_AND:  alu_ctrl_o = ALU_AND;
+                        default:     alu_ctrl_o = ALU_ADD;
+                    endcase
+                end
             end
             default: alu_ctrl_o = ALU_ADD;
         endcase

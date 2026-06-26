@@ -73,29 +73,29 @@ module riscv_csr (
         if (csr_op_i != CSR_NONE) begin
             case (csr_addr_i)
                 // Machine Information Registers
-                12'hF11: csr_rd_o = mvendorid;
-                12'hF12: csr_rd_o = marchid;
-                12'hF13: csr_rd_o = mimpid;
-                12'hF14: csr_rd_o = mhartid;
+                `CSR_MVENDORID: csr_rd_o = mvendorid;
+                `CSR_MARCHID:   csr_rd_o = marchid;
+                `CSR_MIMPID:    csr_rd_o = mimpid;
+                `CSR_MHARTID:   csr_rd_o = mhartid;
                 
                 // Machine Trap Setup
-                12'h300: csr_rd_o = mstatus;
-                12'h301: csr_rd_o = misa;
-                12'h304: csr_rd_o = mie;
-                12'h305: csr_rd_o = mtvec;
+                `CSR_MSTATUS: csr_rd_o = mstatus;
+                `CSR_MISA:    csr_rd_o = misa;
+                `CSR_MIE:     csr_rd_o = mie;
+                `CSR_MTVEC:   csr_rd_o = mtvec;
                 
                 // Machine Trap Handling
-                12'h340: csr_rd_o = mscratch;
-                12'h341: csr_rd_o = mepc;
-                12'h342: csr_rd_o = mcause;
-                12'h343: csr_rd_o = mtval;
-                12'h344: csr_rd_o = mip;
+                `CSR_MSCRATCH: csr_rd_o = mscratch;
+                `CSR_MEPC:     csr_rd_o = mepc;
+                `CSR_MCAUSE:   csr_rd_o = mcause;
+                `CSR_MTVAL:    csr_rd_o = mtval;
+                `CSR_MIP:      csr_rd_o = mip;
                 
                 // Performance Counters
-                12'hB00: csr_rd_o = mcycle[31:0];
-                12'hB80: csr_rd_o = mcycle[63:32];
-                12'hB02: csr_rd_o = minstret[31:0];
-                12'hB82: csr_rd_o = minstret[63:32];
+                `CSR_MCYCLE:    csr_rd_o = mcycle[31:0];
+                `CSR_MCYCLEH:   csr_rd_o = mcycle[63:32];
+                `CSR_MINSTRET:  csr_rd_o = minstret[31:0];
+                `CSR_MINSTRETH: csr_rd_o = minstret[63:32];
                 
                 default: begin
                     csr_rd_o      = 32'b0;
@@ -186,13 +186,13 @@ module riscv_csr (
             end else if (csr_op_i != CSR_NONE && wb_enable_i) begin
                 // Execute CSR Writes
                 case (csr_addr_i)
-                    12'h300: mstatus  <= w_csr_next;
-                    12'h304: mie      <= w_csr_next;
-                    12'h305: mtvec    <= w_csr_next;
-                    12'h340: mscratch <= w_csr_next;
-                    12'h341: mepc     <= w_csr_next;
-                    12'h342: mcause   <= w_csr_next;
-                    12'h343: mtval    <= w_csr_next;
+                    `CSR_MSTATUS:  mstatus  <= w_csr_next;
+                    `CSR_MIE:      mie      <= w_csr_next;
+                    `CSR_MTVEC:    mtvec    <= w_csr_next;
+                    `CSR_MSCRATCH: mscratch <= w_csr_next;
+                    `CSR_MEPC:     mepc     <= w_csr_next;
+                    `CSR_MCAUSE:   mcause   <= w_csr_next;
+                    `CSR_MTVAL:    mtval    <= w_csr_next;
                     // mip is strictly read-only for hardware interrupts in this implementation
                     default: ; // Do not write to invalid or read-only CSRs
                 endcase
