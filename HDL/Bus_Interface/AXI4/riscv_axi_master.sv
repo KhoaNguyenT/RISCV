@@ -1,18 +1,19 @@
-`default_nettype none
+// `default_nettype none
 
 import riscv_axi_pkg::*;
 
 module riscv_axi_master (
-    input  wire         clk_i,
-    input  wire         rst_n_i,
+    input  logic         clk_i,
+    input  logic         rst_n_i,
 
     // Core Interface
-    input  wire         req_i,
-    input  wire         pipe_stall_i, // Báo cho AXI biết pipeline có đang bị stall bởi block khác không
-    input  wire         is_write_i,
-    input  wire [31:0]  addr_i,
-    input  wire [31:0]  wdata_i,
-    input  wire [3:0]   we_i,       // Byte enables
+    input  logic         req_i,
+    input  logic         pipe_stall_i, // Báo cho AXI biết pipeline có đang bị stall bởi block khác không
+    input  logic         flush_i,      // Kết quả fetch hiện tại không cần nữa (trap/branch đã xảy ra)
+    input  logic         is_write_i,
+    input  logic [31:0]  addr_i,
+    input  logic [31:0]  wdata_i,
+    input  logic [3:0]   we_i,       // Byte enables
     output logic [31:0] rdata_o,
     output logic        stall_o,
 
@@ -28,24 +29,31 @@ module riscv_axi_master (
     logic [31:0] wdata_q;
     logic [3:0]  wstrb_q;
     
+    // Không dùng discard_q nữa
+
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
-            addr_q  <= 32'b0;
-            wdata_q <= 32'b0;
-            wstrb_q <= 4'b0;
-        end else if (state == AXI_STATE_IDLE && req_i) begin
-            addr_q  <= addr_i;
-            wdata_q <= wdata_i;
-            wstrb_q <= we_i;
+            addr_q    <= 32'b0;
+            wdata_q   <= 32'b0;
+            wstrb_q   <= 4'b0;
+        end else begin
+            // Capture address khi bắt đầu giao dịch mới (IDLE → AR/AW)
+            if (state == AXI_STATE_IDLE && req_i && !flush_i) begin
+                addr_q  <= addr_i;
+                wdata_q <= wdata_i;
+                wstrb_q <= we_i;
+            end
         end
     end
 
-    // FSM State Transition
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
-            state   <= AXI_STATE_IDLE;
+            state <= AXI_STATE_IDLE;
         end else begin
-            state   <= next_state;
+            state <= next_state;
+            if (next_state != state)
+                $display("[%0t] AXI_IMEM FSM: %0d -> %0d addr=%08X flush=%b pipe_stall=%b", 
+                    $time, state, next_state, addr_q, flush_i, pipe_stall_i);
         end
     end
 
@@ -77,8 +85,10 @@ module riscv_axi_master (
 
         case (state)
             AXI_STATE_IDLE: begin
+                // Trong IDLE: không stall pipeline
                 stall_o = 1'b0;
-                if (req_i) begin
+                // Không bắt đầu fetch mới nếu đang có flush_i (vì PC đang chuẩn bị thay đổi)
+                if (req_i && !flush_i) begin
                     stall_o = 1'b1;
                     if (is_write_i) begin
                         next_state = AXI_STATE_AW;

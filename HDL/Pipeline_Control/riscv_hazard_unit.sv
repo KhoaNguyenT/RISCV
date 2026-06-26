@@ -1,6 +1,10 @@
 `include "config.vh"
 
 module riscv_hazard_unit (
+    // Clock và Reset (dùng cho pending_flush_q)
+    input  logic             clk_i,
+    input  logic             rst_n_i,
+
     // External Stalls from AXI / Memory Wrapper
     input  logic             ext_stall_if_i,
     input  logic             ext_stall_mem_i,
@@ -36,6 +40,7 @@ module riscv_hazard_unit (
     output logic             stall_mem_o,
     output logic             stall_wb_o,
 
+    output logic             flush_if_o, // Raw flush for IMEM
     output logic             flush_id_o,
     output logic             flush_ex_o,
     output logic             flush_mem_o,
@@ -94,10 +99,29 @@ module riscv_hazard_unit (
     logic branch_taken;
     assign branch_taken = (pc_src_ex_i != PC_PLUS_4);
 
+    // Báo cho AXI Master biết là cần bỏ instruction đang fetch
+    assign flush_if_o = branch_taken | trap_i | mret_i;
+    
+    // Ghi nhớ tín hiệu flush do trap/mret nếu pipeline đang bị stall bởi AXI
+    // Vì trap_i chỉ kéo dài 1 cycle, nếu bị stall ta sẽ bị mất tín hiệu flush!
+    logic pending_flush_q;
+    always_ff @(posedge clk_i or negedge rst_n_i) begin
+        if (!rst_n_i) begin
+            pending_flush_q <= 1'b0;
+        end else if ((trap_i | mret_i) && (ext_stall_if_i | ext_stall_mem_i)) begin
+            pending_flush_q <= 1'b1;
+        end else if (!(ext_stall_if_i | ext_stall_mem_i)) begin
+            pending_flush_q <= 1'b0;
+        end
+    end
+    
+    logic active_trap_flush;
+    assign active_trap_flush = trap_i | mret_i | pending_flush_q;
+
     logic do_flush;
-    // Chỉ thực hiện flush do Branch/Trap khi hệ thống KHÔNG BỊ STALL BỞI AXI
+    // Chỉ thực hiện flush pipeline registers khi hệ thống KHÔNG BỊ STALL BỞI AXI
     // Nếu đang bị stall bởi AXI, ta phải giữ nguyên trạng thái EX để chờ AXI xong
-    assign do_flush = (branch_taken | trap_i | mret_i) & ~ext_stall_if_i & ~ext_stall_mem_i;
+    assign do_flush = (branch_taken | active_trap_flush) & ~ext_stall_if_i & ~ext_stall_mem_i;
 
     // Lệnh gây load-use stall nằm ở ID stage. Nếu có do_flush (nhảy/trap), lệnh ở ID sẽ bị huỷ,
     // nên ta bỏ qua lw_stall để cho phép PC cập nhật đúng địa chỉ nhảy.
@@ -124,7 +148,7 @@ module riscv_hazard_unit (
     assign flush_ex_o  = (do_flush | effective_lw_stall) & ~ext_stall_if_i & ~ext_stall_mem_i;
     
     // MEM và WB chỉ bị flush khi có trap/mret
-    assign flush_mem_o = (trap_i | mret_i) & ~ext_stall_if_i & ~ext_stall_mem_i;
-    assign flush_wb_o  = (trap_i | mret_i) & ~ext_stall_if_i & ~ext_stall_mem_i;
+    assign flush_mem_o = active_trap_flush & ~ext_stall_if_i & ~ext_stall_mem_i;
+    assign flush_wb_o  = active_trap_flush & ~ext_stall_if_i & ~ext_stall_mem_i;
 
 endmodule

@@ -7,6 +7,7 @@
 `include "riscv_opcodes.vh"
 `include "riscv_alu_ops.vh"
 `include "riscv_ctrl_ops.vh"
+`include "riscv_axi_pkg.sv"
 
 // Feature Toggles (Cấu hình cứng ở đây)
 `define USE_FULL_ALU    // Bật khối ALU full (bao gồm cả shift, set-less-than)

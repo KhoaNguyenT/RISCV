@@ -44,11 +44,16 @@ module riscv_pc_unit (
         if (!rst_n_i) begin
             pc_o <= `RESET_VECTOR;
         end else if (trap_i) begin
+            // Bất chấp stall, nếu có trap (ví dụ: ngắt), PC phải nhảy đến tvec_i!
             pc_o <= tvec_i;
+            $display("[%0t] PC_UNIT: TRAP! PC changes from %08X to %08X", $time, pc_o, tvec_i);
         end else if (mret_i) begin
+            // Bất chấp stall, nếu có mret, PC phải nhảy đến epc_i!
             pc_o <= epc_i;
+            $display("[%0t] PC_UNIT: MRET! PC changes from %08X to %08X", $time, pc_o, epc_i);
         end else if (en_i) begin
             pc_o <= w_pc_next;
+            if (pc_o != w_pc_next) $display("[%0t] PC_UNIT: NORMAL! PC changes from %08X to %08X", $time, pc_o, w_pc_next);
         end
     end
 

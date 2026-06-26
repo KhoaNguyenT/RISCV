@@ -1,4 +1,4 @@
-`default_nettype none
+// `default_nettype none
 
 import riscv_axi_pkg::*;
 
@@ -6,8 +6,8 @@ module riscv_axi_memory_slave #(
     parameter MEM_SIZE = 1024,
     parameter ADDR_WIDTH = 32
 ) (
-    input  wire         clk_i,
-    input  wire         rst_n_i,
+    input  logic         clk_i,
+    input  logic         rst_n_i,
 
     // AXI4-Lite Interface
     input  axi_req_t  s_axi_req,

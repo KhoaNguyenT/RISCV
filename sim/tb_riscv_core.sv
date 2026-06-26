@@ -33,6 +33,7 @@ module tb_riscv_core();
         .dmem_addr_o        (w_dmem_addr),
         .dmem_wdata_o       (w_dmem_wdata),
         .dmem_we_o          (w_dmem_we),
+        .imem_flush_o       (),
         .dmem_req_o         (w_dmem_req),
         .dmem_rdata_i       (w_dmem_rdata),
         .pc_debug_o         (pc_debug),

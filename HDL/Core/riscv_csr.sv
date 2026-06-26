@@ -22,6 +22,7 @@ module riscv_csr (
     input  logic        is_illegal_i,
     input  logic        is_interrupt_i,
     input  logic [31:0] pc_wb_i,
+    input  logic        wb_enable_i,
     
     // Trap outputs
     output logic        take_interrupt_o,
@@ -125,10 +126,14 @@ module riscv_csr (
     logic take_trap;
     logic take_exception;
     
-    // mstatus[3] is MIE (Machine Interrupt Enable)
-    // mie[11] is MEIE (Machine External Interrupt Enable)
-    // mie[7]  is MTIE (Machine Timer Interrupt Enable)
-    assign take_interrupt_o = mstatus[3] & ((mie[11] & mip[11]) | (mie[7] & mip[7]));
+    // -------------------------------------------------------------------------
+    // 2. NGẮT (INTERRUPTS) - ASYNCHRONOUS
+    // -------------------------------------------------------------------------
+    // take_interrupt_o sẽ kích hoạt khi có ngắt và MIE = 1
+    // Thêm điều kiện pc_wb_i != 0 để không nhận ngắt khi đang có bubble trong pipeline
+    assign take_interrupt_o = mstatus[3] & (
+        (mie[11] & mip[11]) | (mie[7] & mip[7])
+    ) & (pc_wb_i != 32'b0);
     assign take_exception   = is_ecall_i | is_ebreak_i | is_illegal_i;
     assign take_trap        = is_interrupt_i | take_exception;
     
@@ -154,7 +159,14 @@ module riscv_csr (
             minstret <= minstret + 1;
             
             // Trap Handling
-            if (take_trap) begin
+            if (take_interrupt_o && wb_enable_i) begin
+                $display("[%0t] INTERRUPT TAKEN! pc_wb_i = %08X, ext_irq = %b, timer_irq = %b", $time, pc_wb_i, ext_irq_i, timer_irq_i);
+                // Lưu trạng thái trước khi nhảy
+                mepc <= pc_wb_i;
+                mcause <= (mip[11]) ? 32'h8000_000B : 32'h8000_0007; // Machine External or Timer Interrupt
+                mstatus[7] <= mstatus[3];  // MPIE = MIE
+                mstatus[3] <= 1'b0;        // MIE = 0
+            end else if (take_trap && wb_enable_i) begin
                 mepc     <= pc_wb_i;
                 mstatus[7] <= mstatus[3]; // MPIE = MIE
                 mstatus[3] <= 1'b0;       // MIE = 0
@@ -167,11 +179,11 @@ module riscv_csr (
                               is_ebreak_i ? 32'd3 : 32'd2; // 11=ECALL, 3=EBREAK, 2=Illegal Inst
                     $display("TRAP: Exception! pc=%h, ecall=%b, ebreak=%b, illegal=%b", pc_wb_i, is_ecall_i, is_ebreak_i, is_illegal_i);
                 end
-            end else if (is_mret_i) begin
+            end else if (is_mret_i && wb_enable_i) begin
                 mstatus[3] <= mstatus[7]; // MIE = MPIE
                 mstatus[7] <= 1'b1;       // MPIE = 1
                 $display("MRET! returning to mepc=%h", mepc);
-            end else if (csr_op_i != CSR_NONE) begin
+            end else if (csr_op_i != CSR_NONE && wb_enable_i) begin
                 // Execute CSR Writes
                 case (csr_addr_i)
                     12'h300: mstatus  <= w_csr_next;

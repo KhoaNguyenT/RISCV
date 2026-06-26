@@ -16,6 +16,9 @@ module riscv_core (
     output logic [31:0]      dmem_addr_o,
     output logic [31:0]      dmem_wdata_o,
     output logic [3:0]       dmem_we_o,
+    
+    // Tín hiệu hủy giao dịch AXI (Flush)
+    output logic        imem_flush_o,
     output logic             dmem_req_o,
     input  logic [31:0]      dmem_rdata_i,
     
@@ -109,7 +112,7 @@ module riscv_core (
 
     // Hazard Unit Wires
     logic             w_stall_if, w_stall_id, w_stall_ex, w_stall_mem, w_stall_wb;
-    logic             w_flush_id, w_flush_ex, w_flush_mem, w_flush_wb;
+    logic             w_flush_if, w_flush_id, w_flush_ex, w_flush_mem, w_flush_wb;
     logic [1:0]       w_forward_a, w_forward_b;
 
     // Debug Mapping
@@ -130,7 +133,7 @@ module riscv_core (
         .pc_src_i     (w_pc_src_ex),    // Từ EX stage
         .pc_target_i  (w_pc_target_ex), // Từ EX stage
         .alu_result_i (w_alu_result_ex),// Từ EX stage (JALR)
-        .trap_i       (w_trap),         // Từ CSR (WB stage)
+        .trap_i       (w_trap | w_take_interrupt), // Gộp trap đồng bộ và ngắt bất đồng bộ
         .mret_i       (w_mret),         // Từ CSR (WB stage)
         .tvec_i       (w_tvec),         // Từ CSR (WB stage)
         .epc_i        (w_epc),          // Từ CSR (WB stage)
@@ -165,7 +168,7 @@ module riscv_core (
         .rst_n_i        (rst_n_i),
         .instr_i        (w_instr_id),
         .pc_i           (w_pc_id),
-        .reg_write_wb_i (w_reg_write_wb), // Từ WB stage
+        .reg_write_wb_i (w_reg_write_wb & ~w_stall_wb), // Mask write during stall
         .rd_wb_i        (w_rd_addr_wb),
         .result_wb_i    (w_result_wb),
         .rs1_addr_o     (w_rs1_addr_id),
@@ -418,6 +421,10 @@ module riscv_core (
     // =================================================================
     // CSR & PRIVILEGED ARCHITECTURE (WB Stage)
     // =================================================================
+    // Mask side-effects during stall so they only trigger once when the stall ends
+    logic w_wb_enable;
+    assign w_wb_enable = ~w_stall_wb;
+
     riscv_csr u_csr (
         .clk_i          (clk_i),
         .rst_n_i        (rst_n_i),
@@ -426,15 +433,16 @@ module riscv_core (
         .csr_wd_i       (w_csr_wd_wb),
         .csr_rd_o       (w_csr_rd_wb),
         .csr_illegal_o  (w_csr_illegal),
-        .ext_irq_i      (ext_irq_i), 
+        .ext_irq_i      (ext_irq_i),
         .timer_irq_i    (timer_irq_i),
         .is_ecall_i     (w_is_ecall_wb),
         .is_ebreak_i    (w_is_ebreak_wb),
         .is_mret_i      (w_is_mret_wb),
-        .is_illegal_i   (w_is_illegal_wb | w_csr_illegal), // Gộp lỗi decode + lỗi CSR
+        .is_illegal_i   (w_is_illegal_wb | w_csr_illegal),
         .is_interrupt_i (w_is_interrupt_wb),
         .pc_wb_i        (w_pc_wb),
-        .take_interrupt_o (w_take_interrupt),
+        .wb_enable_i    (w_wb_enable),
+        .take_interrupt_o(w_take_interrupt),
         .trap_o         (w_trap),
         .mret_o         (w_mret),
         .epc_o          (w_epc),
@@ -457,6 +465,8 @@ module riscv_core (
     // HAZARD UNIT (Giải quyết xung đột)
     // =================================================================
     riscv_hazard_unit u_hazard_unit (
+        .clk_i           (clk_i),
+        .rst_n_i         (rst_n_i),
         .ext_stall_if_i  (ext_stall_if_i),
         .ext_stall_mem_i (ext_stall_mem_i),
         .rs1_addr_id_i   (w_rs1_addr_id),
@@ -471,13 +481,14 @@ module riscv_core (
         .result_src_mem_i(w_result_src_mem),
         .rd_addr_wb_i    (w_rd_addr_wb),
         .reg_write_wb_i  (w_reg_write_wb),
-        .trap_i          (w_trap),
+        .trap_i          (w_trap | w_take_interrupt), // Gộp trap đồng bộ và ngắt bất đồng bộ
         .mret_i          (w_mret),
         .stall_if_o      (w_stall_if),
         .stall_id_o      (w_stall_id),
         .stall_ex_o      (w_stall_ex),
         .stall_mem_o     (w_stall_mem),
         .stall_wb_o      (w_stall_wb),
+        .flush_if_o      (w_flush_if),
         .flush_id_o      (w_flush_id),
         .flush_ex_o      (w_flush_ex),
         .flush_mem_o     (w_flush_mem),
@@ -491,5 +502,8 @@ module riscv_core (
     
     // Memory address is ALU result from MEM stage
     assign dmem_addr_o = w_alu_result_mem;
+
+    // Gán đầu ra flush cho IMEM AXI - tổ hợp để AXI master nhận ngay trong cycle trap xảy ra
+    assign imem_flush_o = w_flush_if;
 
 endmodule

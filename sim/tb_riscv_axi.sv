@@ -83,6 +83,16 @@ module tb_riscv_axi();
         ext_irq = 0;
         timer_irq = 0;
 
+        // Bật ngắt sau một khoảng thời gian (cần cho testcase_irq)
+        fork
+            begin
+                #2000;
+                ext_irq = 1;
+                #200;
+                ext_irq = 0;
+            end
+        join_none
+
 `ifdef EXPECT_INIT_FILE
         $readmemh(`EXPECT_INIT_FILE, expected_regs);
 `else
@@ -121,17 +131,23 @@ module tb_riscv_axi();
 
     // Monitor AXI Transactions
     always @(posedge clk_i) begin
+        if (m_axi_if_req.ar_valid && m_axi_if_resp.ar_ready) begin
+            $display("[%0t] AXI IMEM READ ADDR: 0x%08X", $time, m_axi_if_req.ar.araddr);
+        end
+        if (m_axi_if_resp.r_valid && m_axi_if_req.r_ready) begin
+            $display("[%0t] AXI IMEM READ DATA: 0x%08X", $time, m_axi_if_resp.r.rdata);
+        end
         if (m_axi_dmem_req.aw_valid && m_axi_dmem_resp.aw_ready) begin
-            $display("AXI DMEM WRITE ADDR: 0x%08X", m_axi_dmem_req.aw.awaddr);
+            $display("[%0t] AXI DMEM WRITE ADDR: 0x%08X", $time, m_axi_dmem_req.aw.awaddr);
         end
         if (m_axi_dmem_req.w_valid && m_axi_dmem_resp.w_ready) begin
-            $display("AXI DMEM WRITE DATA: 0x%08X, STRB: %b", m_axi_dmem_req.w.wdata, m_axi_dmem_req.w.wstrb);
+            $display("[%0t] AXI DMEM WRITE DATA: 0x%08X, STRB: %b", $time, m_axi_dmem_req.w.wdata, m_axi_dmem_req.w.wstrb);
         end
         if (m_axi_dmem_req.ar_valid && m_axi_dmem_resp.ar_ready) begin
-            $display("AXI DMEM READ ADDR: 0x%08X", m_axi_dmem_req.ar.araddr);
+            $display("[%0t] AXI DMEM READ ADDR: 0x%08X", $time, m_axi_dmem_req.ar.araddr);
         end
         if (m_axi_dmem_resp.r_valid && m_axi_dmem_req.r_ready) begin
-            $display("AXI DMEM READ DATA: 0x%08X", m_axi_dmem_resp.r.rdata);
+            $display("[%0t] AXI DMEM READ DATA: 0x%08X", $time, m_axi_dmem_resp.r.rdata);
         end
     end
 

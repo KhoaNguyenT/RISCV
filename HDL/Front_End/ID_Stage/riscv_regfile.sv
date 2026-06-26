@@ -30,6 +30,7 @@ module riscv_regfile (
             end
         end else if (we3_i && a3_i != 5'b0) begin
             registers[a3_i] <= wd3_i;
+            if (a3_i == 5'd1) $display("[%0t] REGFILE: Wrote %08X to x1", $time, wd3_i);
         end
     end
 

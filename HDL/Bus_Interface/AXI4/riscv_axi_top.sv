@@ -1,14 +1,14 @@
-`default_nettype none
+// `default_nettype none
 
 import riscv_axi_pkg::*;
 
 module riscv_axi_top (
-    input  wire         clk_i,
-    input  wire         rst_n_i,
+    input  logic         clk_i,
+    input  logic         rst_n_i,
 
     // Interrupts
-    input  wire         ext_irq_i,
-    input  wire         timer_irq_i,
+    input  logic         ext_irq_i,
+    input  logic         timer_irq_i,
 
     // ---------------------------------------------------------
     // AXI4-Lite Instruction Interface (Master)
@@ -23,10 +23,11 @@ module riscv_axi_top (
     input  axi_resp_t m_axi_dmem_resp
 );
 
-    // Core Interconnect Wires
+    // Core Interconnect logics
     logic [31:0] core_imem_addr;
     logic [31:0] core_imem_rdata;
     logic        core_stall_if;
+    logic        core_imem_flush;
 
     logic [31:0] core_dmem_addr;
     logic [31:0] core_dmem_wdata;
@@ -49,6 +50,7 @@ module riscv_axi_top (
         
         .imem_addr_o     (core_imem_addr),
         .imem_rdata_i    (core_imem_rdata),
+        .imem_flush_o    (core_imem_flush),
         
         .dmem_addr_o     (core_dmem_addr),
         .dmem_wdata_o    (core_dmem_wdata),
@@ -70,6 +72,7 @@ module riscv_axi_top (
         // Core Interface
         .req_i         (1'b1), // Always fetch next instruction
         .pipe_stall_i  (core_stall_if), // Pipeline bị stall ở IF => Đợi ở DONE
+        .flush_i       (core_imem_flush), // Flush khi trap/branch
         .is_write_i    (1'b0), // IF is read-only
         .addr_i        (core_imem_addr),
         .wdata_i       (32'b0),
@@ -95,6 +98,7 @@ module riscv_axi_top (
         // Core Interface
         .req_i         (core_dmem_req),
         .pipe_stall_i  (core_stall_mem), // Pipeline bị stall ở MEM => Đợi ở DONE
+        .flush_i       (1'b0), // DMEM không bị flush
         .is_write_i    (is_dmem_write),
         .addr_i        (core_dmem_addr),
         .wdata_i       (core_dmem_wdata),
