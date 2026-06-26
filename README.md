@@ -43,6 +43,7 @@ RISCV-basic/
 │   │   ├── EX_Stage/                  # Execute
 │   │   │   ├── riscv_ex_stage.sv
 │   │   │   ├── riscv_alu.sv
+│   │   │   ├── riscv_multdiv.sv       # Hardware Multiplier/Divider
 │   │   │   └── riscv_branch_eval.sv
 │   │   ├── MEM_Stage/                 # Memory Access
 │   │   │   ├── riscv_mem_stage.sv
@@ -68,6 +69,7 @@ RISCV-basic/
 │   ├── asm/                           # 📝 Assembly test sources (.s)
 │   │   ├── testcase_hazards.s
 │   │   ├── testcase_alu.s
+│   │   ├── testcase_multdiv.s
 │   │   ├── testcase_ls.s
 │   │   ├── testcase_branch.s
 │   │   ├── testcase_csr.s
@@ -111,6 +113,9 @@ make test_testcase_hazards
 
 # Run the ALU comprehensive test
 make test_testcase_alu
+
+# Run the M-Extension (Multiplication/Division) test
+make test_testcase_multdiv
 
 # Run the Load/Store test
 make test_testcase_ls
