@@ -184,7 +184,6 @@ No Makefile modification needed — tests are **auto-discovered**.
 - [x] `ECALL` / `EBREAK` / `MRET` instructions
 - [x] Interrupt & Exception Handling
 - [x] M-Extension (Hardware Multiplication & Division)
-- [ ] Single-File IP Wrapping (`Core.sv`) for Vivado
 - [ ] Performance Counters (`mcycle`, `minstret`)
 - [ ] TileLink-UL Wrapper Integration
 

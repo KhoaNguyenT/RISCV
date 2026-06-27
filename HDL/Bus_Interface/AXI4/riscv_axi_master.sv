@@ -14,8 +14,8 @@ module riscv_axi_master (
     input  logic [31:0]  addr_i,
     input  logic [31:0]  wdata_i,
     input  logic [3:0]   we_i,       // Byte enables
-    output logic [31:0] rdata_o,
-    output logic        stall_o,
+    output logic [31:0]  rdata_o,
+    output logic         stall_o,
 
     // AXI4-Lite Interface
     output axi_req_t  m_axi_req,
@@ -29,8 +29,6 @@ module riscv_axi_master (
     logic [31:0] wdata_q;
     logic [3:0]  wstrb_q;
     
-    // Không dùng discard_q nữa
-
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
             addr_q    <= 32'b0;
@@ -61,8 +59,8 @@ module riscv_axi_master (
     always_ff @(posedge clk_i or negedge rst_n_i) begin
         if (!rst_n_i) begin
             rdata_o <= 32'b0;
-        end else if (state == AXI_STATE_R && m_axi_resp.r_valid) begin
-            rdata_o <= m_axi_resp.r.rdata;
+        end else if (state == AXI_STATE_R && m_axi_resp.RVALID) begin
+            rdata_o <= m_axi_resp.r.RDATA;
         end
     end
 
@@ -72,16 +70,39 @@ module riscv_axi_master (
         next_state    = state;
         stall_o       = 1'b1;
         
-        m_axi_req.ar.araddr = addr_q;
-        m_axi_req.ar_valid  = 1'b0;
-        m_axi_req.r_ready   = 1'b0;
+        m_axi_req.ar.ARID     = 4'b0;
+        m_axi_req.ar.ARADDR   = addr_q;
+        m_axi_req.ar.ARLEN    = 8'd0;       // 1 transfer
+        m_axi_req.ar.ARSIZE   = 3'b010;     // 4 bytes per transfer
+        m_axi_req.ar.ARBURST  = 2'b01;      // INCR
+        m_axi_req.ar.ARLOCK   = 1'b0;       // Normal access
+        m_axi_req.ar.ARCACHE  = 4'b0000;    // Device Non-bufferable
+        m_axi_req.ar.ARPROT   = 3'b000;     // Unprivileged, Secure, Data
+        m_axi_req.ar.ARQOS    = 4'b0000;
+        m_axi_req.ar.ARREGION = 4'b0000;
+        m_axi_req.ar.ARUSER   = 1'b0;
+        m_axi_req.ARVALID     = 1'b0;
+        m_axi_req.RREADY      = 1'b0;
         
-        m_axi_req.aw.awaddr = addr_q;
-        m_axi_req.aw_valid  = 1'b0;
-        m_axi_req.w.wdata   = wdata_q;
-        m_axi_req.w.wstrb   = wstrb_q;
-        m_axi_req.w_valid   = 1'b0;
-        m_axi_req.b_ready   = 1'b0;
+        m_axi_req.aw.AWID     = 4'b0;
+        m_axi_req.aw.AWADDR   = addr_q;
+        m_axi_req.aw.AWLEN    = 8'd0;       // 1 transfer
+        m_axi_req.aw.AWSIZE   = 3'b010;     // 4 bytes per transfer
+        m_axi_req.aw.AWBURST  = 2'b01;      // INCR
+        m_axi_req.aw.AWLOCK   = 1'b0;       // Normal access
+        m_axi_req.aw.AWCACHE  = 4'b0000;    // Device Non-bufferable
+        m_axi_req.aw.AWPROT   = 3'b000;     // Unprivileged, Secure, Data
+        m_axi_req.aw.AWQOS    = 4'b0000;
+        m_axi_req.aw.AWREGION = 4'b0000;
+        m_axi_req.aw.AWUSER   = 1'b0;
+        m_axi_req.AWVALID     = 1'b0;
+        
+        m_axi_req.w.WDATA     = wdata_q;
+        m_axi_req.w.WSTRB     = wstrb_q;
+        m_axi_req.w.WLAST     = 1'b1;       // Single beat transfer is always the last
+        m_axi_req.w.WUSER     = 1'b0;
+        m_axi_req.WVALID      = 1'b0;
+        m_axi_req.BREADY      = 1'b0;
 
         case (state)
             AXI_STATE_IDLE: begin
@@ -99,39 +120,39 @@ module riscv_axi_master (
             end
             
             AXI_STATE_AR: begin
-                m_axi_req.ar_valid = 1'b1;
-                if (m_axi_resp.ar_ready) begin
+                m_axi_req.ARVALID = 1'b1;
+                if (m_axi_resp.ARREADY) begin
                     next_state = AXI_STATE_R;
                 end
             end
             
             AXI_STATE_R: begin
-                m_axi_req.r_ready = 1'b1;
-                if (m_axi_resp.r_valid) begin
+                m_axi_req.RREADY = 1'b1;
+                if (m_axi_resp.RVALID) begin
                     next_state = AXI_STATE_DONE;
                 end
             end
             
             AXI_STATE_AW: begin
-                m_axi_req.aw_valid = 1'b1;
-                m_axi_req.w_valid  = 1'b1;
-                if (m_axi_resp.aw_ready && m_axi_resp.w_ready) begin
+                m_axi_req.AWVALID = 1'b1;
+                m_axi_req.WVALID  = 1'b1;
+                if (m_axi_resp.AWREADY && m_axi_resp.WREADY) begin
                     next_state = AXI_STATE_B;
-                end else if (m_axi_resp.aw_ready) begin
+                end else if (m_axi_resp.AWREADY) begin
                     next_state = AXI_STATE_W;
                 end
             end
             
             AXI_STATE_W: begin
-                m_axi_req.w_valid = 1'b1;
-                if (m_axi_resp.w_ready) begin
+                m_axi_req.WVALID = 1'b1;
+                if (m_axi_resp.WREADY) begin
                     next_state = AXI_STATE_B;
                 end
             end
             
             AXI_STATE_B: begin
-                m_axi_req.b_ready = 1'b1;
-                if (m_axi_resp.b_valid) begin
+                m_axi_req.BREADY = 1'b1;
+                if (m_axi_resp.BVALID) begin
                     next_state = AXI_STATE_DONE;
                 end
             end
